@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+require 'rbconfig'
+$:.unshift "./lib/#{ Config::CONFIG['arch'] }"
+$:.unshift "./lib"
+
+# mouseHole user libs
+require 'mouseHole'
+
+::HOSTS = Hash[ *%w[
+    hoodwink.d  65.125.236.166
+] ]
+
+begin
+    server = MouseHole::new( 
+        :BindAddress => ARGV[0] || "127.0.0.1",
+        :Port => ARGV[1] || 37004
+    )
+    appdir = File.dirname(__FILE__)
+    if defined? RUBYSCRIPT2EXE_APPEXE
+        # Object::constants.grep( /^RUBYSCRIPT/ ).each do |c|
+        #     puts "#{c}: #{ Object::const_get c }"
+        # end
+        appdir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
+    end
+    server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( appdir, 'images' ) )
+    trap( :INT ) { server.shutdown }
+    server.start
+rescue Exception
+    MouseHole::Log.error "Error in MouseHole: #{$!}"
+    server.shutdown
+end
