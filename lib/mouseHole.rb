@@ -663,7 +663,9 @@ class MouseHole < WEBrick::HTTPProxyServer
     class << self
         # Search for libtidy
         libtidy = nil
-        [File.dirname(__FILE__), '/usr/lib', '/usr/local/lib'].each do |libdir|
+        libdirs = [File.dirname(__FILE__), '/usr/lib', '/usr/local/lib']
+        libdirs << File.dirname( RUBYSCRIPT2EXE_APPEXE ) if defined? RUBYSCRIPT2EXE_APPEXE
+        libdirs.each do |libdir|
             libtidy = File.join( libdir, "libtidy.#{ Config::CONFIG['DLEXT'] }" )
             if File.exists? libtidy
                 require 'tidy'
