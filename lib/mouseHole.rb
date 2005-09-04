@@ -1,5 +1,10 @@
+require 'rbconfig'
+$:.unshift "#{ File.dirname __FILE__ }/#{ Config::CONFIG['arch'] }"
+$:.unshift "#{ File.dirname __FILE__ }"
+
+# mouseHole user libs
+require 'rubygems'
 require 'ftools'
-require 'htree'
 require 'open-uri'
 require 'json/lexer'
 require 'json/objects'
@@ -14,6 +19,8 @@ require 'yaml/dbm'
 require 'dnshack'
 
 class MouseHole < WEBrick::HTTPProxyServer
+
+    VERSION = "1.2"
 
     include REXML
 
@@ -588,25 +595,14 @@ class MouseHole < WEBrick::HTTPProxyServer
         def []=( k, v ); @db[ k ] = v; end
         def execute( req, res )
             return unless rewrite_proc
-            @document = parse_xhtml HTree( res.body )
+            @document = MouseHole.parse_xhtml res.body
             return unless @document
             rewrite_proc[ req, res ]
             document.write( res.body = "" )
         end
 
-        def parse_xhtml( htree )
-            htree.each_child do |child|
-                if child.respond_to? :qualified_name
-                    if child.qualified_name == 'html'
-                        return HTree::Doc.new( child ).to_rexml
-                        break
-                    end
-                end
-            end
-        end
-
         def read_xhtml_from( uri )
-            parse_xhtml( open( uri ) { |f| HTree.parse f } )
+            parse_xhtml( open( uri ) { |f| f.read } )
         end
 
     end
@@ -664,4 +660,36 @@ class MouseHole < WEBrick::HTTPProxyServer
         raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'" unless obj
     end
 
+    class << self
+        # Search for libtidy
+        libtidy = nil
+        [File.dirname(__FILE__), '/usr/lib', '/usr/local/lib'].each do |libdir|
+            libtidy = File.join( libdir, "libtidy.#{ Config::CONFIG['DLEXT'] }" )
+            if File.exists? libtidy
+                require 'tidy'
+                require 'htree/htmlinfo'
+                Tidy.path = libtidy
+                def parse_xhtml html
+                    Tidy.open :output_xhtml => true do |tidy|
+                        REXML::Document.new( tidy.clean html )
+                    end
+                end
+                break
+            end
+            libtidy = nil
+        end
+
+        unless libtidy
+            require 'htree'
+            def parse_xhtml html
+                HTree.parse( html ).each_child do |child|
+                    if child.respond_to? :qualified_name
+                        if child.qualified_name == 'html'
+                            return HTree::Doc.new( child ).to_rexml
+                        end
+                    end
+                end
+            end
+        end
+    end
 end

@@ -1,10 +1,5 @@
 #!/usr/bin/env ruby
-require 'rbconfig'
-$:.unshift "./lib/#{ Config::CONFIG['arch'] }"
-$:.unshift "./lib"
-
-# mouseHole user libs
-require 'mouseHole'
+require './lib/mouseHole'
 
 ::HOSTS = Hash[ *%w[
     hoodwink.d  65.125.236.166
