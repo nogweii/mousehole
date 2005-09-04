@@ -220,7 +220,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Load a string as a Regexp, if it looks like one.
     def regexp( val )
         if val =~ /^\/(.*)\/([mix]*)$/
-		    r, m = $1, $2
+            r, m = $1, $2
             mods = nil
             unless m.to_s.empty?
                 mods = 0x00
@@ -595,14 +595,14 @@ class MouseHole < WEBrick::HTTPProxyServer
         def []=( k, v ); @db[ k ] = v; end
         def execute( req, res )
             return unless rewrite_proc
-            @document = MouseHole.parse_xhtml res.body
+            @document = read_xhtml res.body
             return unless @document
             rewrite_proc[ req, res ]
             document.write( res.body = "" )
         end
 
         def read_xhtml_from( uri )
-            parse_xhtml( open( uri ) { |f| f.read } )
+            read_xhtml( open( uri ) { |f| f.read } )
         end
 
     end
@@ -660,21 +660,25 @@ class MouseHole < WEBrick::HTTPProxyServer
         raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'" unless obj
     end
 
-    class << self
+    class UserScript
         # Search for libtidy
         libtidy = nil
-        libdirs = [File.dirname(__FILE__), '/usr/lib', '/usr/local/lib']
+        libdirs = ['/usr/lib', '/usr/local/lib'] + $:
         libdirs << File.dirname( RUBYSCRIPT2EXE_APPEXE ) if defined? RUBYSCRIPT2EXE_APPEXE
         libdirs.each do |libdir|
-            libtidy = File.join( libdir, "libtidy.#{ Config::CONFIG['DLEXT'] }" )
+            libtidy = File.join( libdir, "libtidy.#{ Config::CONFIG['arch'] =~ /win32/ ? 'dll' : 'so' }" )
             if File.exists? libtidy
+                puts "Found Tidy! #{ libtidy }"
                 require 'tidy'
                 require 'htree/htmlinfo'
                 Tidy.path = libtidy
-                def parse_xhtml html
+                def xhtml html
                     Tidy.open :output_xhtml => true do |tidy|
-                        REXML::Document.new( tidy.clean( html ) )
+                        tidy.clean( html )
                     end
+                end
+                def read_xhtml html
+                    REXML::Document.new( xhtml( html ) )
                 end
                 break
             end
@@ -682,8 +686,14 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
 
         unless libtidy
+            puts "No Tidy found."
             require 'htree'
-            def parse_xhtml html
+            def xhtml html
+               out = ""
+               HTree( str ).display_xml( out )
+               out
+            end
+            def read_xhtml html
                 HTree.parse( html ).each_child do |child|
                     if child.respond_to? :qualified_name
                         if child.qualified_name == 'html'
