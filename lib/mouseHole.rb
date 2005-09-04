@@ -673,7 +673,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 Tidy.path = libtidy
                 def parse_xhtml html
                     Tidy.open :output_xhtml => true do |tidy|
-                        REXML::Document.new( tidy.clean html )
+                        REXML::Document.new( tidy.clean( html ) )
                     end
                 end
                 break
