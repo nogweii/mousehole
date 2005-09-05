@@ -3,7 +3,7 @@ $:.unshift "#{ File.dirname __FILE__ }/#{ Config::CONFIG['arch'] }"
 $:.unshift "#{ File.dirname __FILE__ }"
 
 # mouseHole user libs
-require 'rubygems'
+require 'builder'
 require 'ftools'
 require 'open-uri'
 require 'json/lexer'
@@ -89,7 +89,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         scripts = @user_scripts
         if which == :all
             scripts = scripts.to_a + Dir["#{ @user_script_dir }/*.user.rb"].map do |path| 
-                [File.basename path] unless scripts[File.basename path]
+                [File.basename(path)] unless scripts[File.basename(path)]
             end.compact
         end
         scripts.each do |path, script|
@@ -300,6 +300,43 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
     end
 
+    # RSS feed of all user scripts.  Two good uses of this: your browser can build a bookmark list of all
+    # your user scripts from the feed (or) if you share a proxy, you can be informed concerning the user scripts
+    # people are installing.
+    def server_rss( args, req, res )
+        res['content-type'] = 'text/xml'
+        rss( res.body = "" ) do |c|
+            uri = req.request_uri.dup
+            uri.path = '/'
+
+            c.title "MouseHole User Scripts: #{ uri.host }"
+            c.link "#{ uri }"
+            c.description "A list of user script installed for the MouseHole proxy at #{ uri }"
+
+            each_fresh_script :all do |path, script|
+                if script
+                    c.item do |item|
+                        uri.path = "/mouseHole/config/#{ path }"
+                        item.title "#{ script.name }: Configuration"
+                        item.link "#{ uri }"
+                        item.guid "#{ uri }"
+                        item.dc :creator, "MouseHole"
+                        item.dc :date, script.mtime
+                        item.description script.description
+                    end
+                    if script.mount
+                        c.item do |item|
+                            uri.path = "/#{ script.mount }"
+                            item.title "#{ script.name }: Mounted at /#{ script.mount }"
+                            item.link "#{ uri }"
+                            item.guid "#{ uri }"
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     # Dumps database to the browser, for debugging, for knowledge.
     def server_database( args, req, res )
         databases = [['mouseHole', @db]]
@@ -491,6 +528,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Wrapper HTML for all configuration/installation pages.
     def installer_html( req, title, content )
         %[<html><head><title>#{ title }</title>
+        <link href='/mouseHole/rss' title='RSS' rel='alternate' type='application/rss+xml' />
         <style type="text/css">
         body {
             color: #333;
@@ -614,6 +652,28 @@ class MouseHole < WEBrick::HTTPProxyServer
             border="0" /></a></div>
         #{ content }
         </body></html>]
+    end
+
+    # RSS starter method.
+    def rss( io )
+        feed = Builder::XmlMarkup.new( :target => io, :indent => 2 )
+        feed.instruct! :xml, :version => "1.0", :encoding => "UTF-8"
+        feed.rss( 'xmlns:admin' => 'http://webns.net/mvcb/',
+                  'xmlns:sy' => 'http://purl.org/rss/1.0/modules/syndication/',
+                  'xmlns:dc' => 'http://purl.org/dc/elements/1.1/',
+                  'xmlns:rdf' => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                  'version' => '2.0' ) do |rss|
+            rss.channel do |c|
+                # channel stuffs
+                c.dc :language, "en-us" 
+                c.dc :creator, "MouseHole #{ VERSION }"
+                c.dc :date, Time.now.utc.strftime( "%Y-%m-%dT%H:%M:%S+00:00" )
+                c.admin :generatorAgent, "rdf:resource" => "http://builder.rubyforge.org/"
+                c.sy :updatePeriod, "hourly"
+                c.sy :updateFrequency, 1
+                yield c
+            end
+        end 
     end
 
     # The Evaluator class is used during the script security check.  Metadata about the
