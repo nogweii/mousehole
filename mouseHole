@@ -1,14 +1,18 @@
 #!/usr/bin/env ruby
 require './lib/mouseHole'
 
-::HOSTS = Hash[ *%w[
+MOUSEHOST = ARGV[0] || "127.0.0.1"
+MOUSEPORT = ARGV[1] || 37004
+::HOSTS = Hash[ *%W[
     hoodwink.d  65.125.236.166
+    mouse.hole  #{ MOUSEHOST }:#{ MOUSEPORT }
+    mh          #{ MOUSEHOST }:#{ MOUSEPORT }
 ] ]
 
 begin
     server = MouseHole::new( 
-        :BindAddress => ARGV[0] || "127.0.0.1",
-        :Port => ARGV[1] || 37004
+        :BindAddress => MOUSEHOST,
+        :Port => MOUSEPORT
     )
     appdir = File.dirname(__FILE__)
     if defined? RUBYSCRIPT2EXE_APPEXE

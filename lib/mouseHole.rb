@@ -13,9 +13,11 @@ require 'md5'
 require 'redcloth'
 require 'rexml/document'
 require 'rexml/htmlwrite'
-require "timeout"
+require 'stringio'
+require 'timeout'
 require 'webrick/httpproxy'
 require 'yaml/dbm'
+require 'zlib'
 require 'dnshack'
 
 class MouseHole < WEBrick::HTTPProxyServer
@@ -84,16 +86,23 @@ class MouseHole < WEBrick::HTTPProxyServer
 
     # Loops through scripts, ensuring freshness, reloading as needed
     def each_fresh_script( which = :active )
-        @user_scripts.each do |path, script|
-            next unless script.active or which == :all
+        scripts = @user_scripts
+        if which == :all
+            scripts = scripts.to_a + Dir["#{ @user_script_dir }/*.user.rb"].map do |path| 
+                [File.basename path] unless scripts[File.basename path]
+            end.compact
+        end
+        scripts.each do |path, script|
             fullpath = "#{ @user_script_dir }/#{ path }"
             if not File.exists? fullpath
                 @user_scripts.delete(path)
             else
-                if File.mtime(fullpath) > script.mtime
-                    debug( "Reloading #{ path }, as it has changed." )
-                    script = load_user_script( path )
+                if script.nil? or File.mtime(fullpath) > ( script.mtime rescue Time.at(0) )
+                    puts( "Reloading #{ path }, as it has changed." )
+                    @user_scripts[path] = script = load_user_script( path )
                 end
+                active = script.respond_to?(:active) and script.active
+                next unless active or which == :all
                 yield path, script
             end
         end
@@ -101,16 +110,25 @@ class MouseHole < WEBrick::HTTPProxyServer
 
     # Loads a user script and merges in the user's configuration for that script.
     def load_user_script( userb )
-        if @user_scripts[userb] and @user_scripts[userb].db
-            @user_scripts[userb].db.close
+        if @user_scripts[userb] and @user_scripts[userb].respond_to?(:db) and @user_scripts[userb].db
+            @user_scripts[userb].db.close rescue nil
         end
         fullpath = "#{ @user_script_dir }/#{ userb }"
-        script = eval( File.read( fullpath ) )
-        script.db = YAML::DBM.open( File.join( @user_data_dir, userb ) )
-        script.mtime = File.mtime( fullpath )
-        script.active = true
-        ( @db["script:#{ userb }"] || {} ).each do |k,v|
-            script.method( "#{ k }=" ).call( v )
+        script = nil
+        begin
+            script = eval( File.read( fullpath ) )
+            script.db = YAML::DBM.open( File.join( @user_data_dir, userb ) )
+            script.mtime = File.mtime( fullpath )
+            script.active = true
+            ( @db["script:#{ userb }"] || {} ).each do |k,v|
+                script.method( "#{ k }=" ).call( v )
+            end
+            if script.mount
+                ::HOSTS[script.mount.to_s] = "#{ MOUSEHOST }:#{ MOUSEPORT }"
+                ::HOSTS["mouse.#{ script.mount }"] = "#{ MOUSEHOST }:#{ MOUSEPORT }"
+            end
+        rescue Exception => e
+            script = e
         end
         @user_scripts[userb] = script
     end
@@ -123,16 +141,44 @@ class MouseHole < WEBrick::HTTPProxyServer
         res['pragma'] = 'no-cache'
     end
 
+    def decode(res)
+        case res['content-encoding']
+        when 'gzip':
+            gzr = Zlib::GzipReader.new(StringIO.new(res.body))
+            res.body = gzr.read
+            gzr.close
+            res['content-encoding'] = nil
+        when 'deflate':
+            res.body = Zlib::Inflate.inflate(res.body)
+            res['content-encoding'] = nil
+        end
+    end
+
     # Before sending a request, alter outgoing headers.
     def prewink( req, res )
-        req.header.delete 'accept-encoding'
+        req.header['accept-encoding'] = ['gzip','deflate']
+        # each_fresh_script do |path, script|
+        #     next unless script.match req.request_uri
+        #     script.prewrite( req, res )
+        # end
+    end
+
+    # Is this request referencing a URL handled by MouseHole?
+    def is_mousehole? req
+        if ::HOSTS.has_key? req.host
+            host, port = ::HOSTS[ req.host ].split ':'
+        end
+        host ||= req.host
+        port ||= req.port
+        host == @config[:BindAddress] and port.to_i == @config[:Port].to_i
     end
 
     # After response is received, pass to qualifying scripts.
     # Also detects user scripts in the wild.
     def upwink( req, res )
-        if res.status == 200 and req.request_uri.to_s !~ /^#{ home_url }/
+        if res.status == 200 and not is_mousehole? req
             if req.request_uri.path =~ /\.user\.rb$/
+                decode(res)
                 scrip = File.basename( req.request_uri.path )
                 evaluator = Evaluator.new( scrip, res.body.dup )
                 t = Tempfile.new( scrip )
@@ -145,7 +191,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                     $SAFE = 4
                     e.evaluate
                 end
-                res.body = installer_pane( evaluator, "#{ home_url }mouseHole/install" )
+                res.body = installer_pane( req, evaluator, "#{ home_url req }mouseHole/install" )
                 res['content-type'] = 'text/html'
                 res['content-length'] = res.body.length
                 no_cache res
@@ -153,19 +199,29 @@ class MouseHole < WEBrick::HTTPProxyServer
             elsif @conf[:rewrites_on]
                 case res.content_type
                 when /^text\/html/, /^application\/xhtml+xml/
+                    doc = nil
                     each_fresh_script do |path, script|
                         next unless script.match req.request_uri
+                        unless doc
+                            decode(res)
+                            doc = script.read_xhtml( res.body, true )
+                            res.body = ""
+                        end
+                        script.document = doc
                         script.execute( req, res )
                     end
-                    res['content-length'] = res.body.length
-                    no_cache res
+                    if doc
+                        doc.write( res.body = "" )
+                        res['content-length'] = res.body.length
+                        no_cache res
+                    end
                 end
             end
         end
     end
 
     # MouseHole's own top URL.
-    def home_url; "http://#{ @config[:BindAddress] }:#{ @config[:Port] }/"; end
+    def home_url( req ); is_mousehole?( req ) ? "/" : "http://#{ @config[:BindAddress] }:#{ @config[:Port ] }/"; end
 
     # The home page, primary configuration.
     def mousehole_home( req, res )
@@ -194,14 +250,24 @@ class MouseHole < WEBrick::HTTPProxyServer
             script_count = 0
         each_fresh_script :all do |path, script|
             mounted = nil
-            if script.mount
-                mounted = %{<p class="mount">[<a href="/#{ script.mount }">/#{ script.mount }]</a></p>}
+            if script.respond_to? :mount
+                if script.mount
+                    mounted = %{<p class="mount">[<a href="/#{ script.mount }">/#{ script.mount }]</a></p>}
+                end
+                content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle"
+                    onClick="sndReq('/mouseHole/toggle/#{ File.basename path }')"
+                    #{ 'checked' if script.active } />
+                    <h4><a href="/mouseHole/config/#{ File.basename path }">#{ script.name }</a></h4>
+                    #{ mounted }<p class="details">#{ script.description }</p></li>}
+            else
+                ctx, lineno, func, message = script.message.split( /\s*:\s*/, 4 )        
+                if message =~ /\(eval\):(\d+):\s+(.+)$/
+                    lineno, message = $1, $2
+                end
+                content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle" disabled="true" />
+                    <h4>#{ path }</h4>
+                    <p class="details">Script failed due to #{ script.class } on line #{ lineno }: `#{ message }'</p></li>}
             end
-            content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle"
-                onClick="sndReq('/mouseHole/toggle/#{ File.basename path }')"
-                #{ 'checked' if script.active } />
-                <h4><a href="/mouseHole/config/#{ File.basename path }">#{ script.name }</a></h4>
-                #{ mounted }<p class="details">#{ script.description }</p></li>}
             script_count += 1
         end
         content += %{<li><p>#{ script_count.zero? ? "No" : script_count } user scripts installed.</p></li>}
@@ -214,7 +280,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 </div>
             </div>
         }
-        res.body = installer_html( title, content )
+        res.body = installer_html( req, title, content )
     end
 
     # Load a string as a Regexp, if it looks like one.
@@ -238,7 +304,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     def server_database( args, req, res )
         databases = [['mouseHole', @db]]
         if req.query['all']
-            databases += @user_scripts.map { |path,script| [script.name, script.db] }
+            databases += @user_scripts.map { |path,script| [script.name, script.db] if script.respond_to? :db }.compact
         end
         body = %{<div id="installer"><h1>Database dump</h1>}
         databases.each do |area, db|
@@ -249,7 +315,7 @@ class MouseHole < WEBrick::HTTPProxyServer
             body += %{<p><a href="?all=1">Show all data</a></p>}
         end
         body += %{</div>}
-        res.body = installer_html "Database dump", body
+        res.body = installer_html req, "Database dump", body
     end
 
     # Turns on/off rewriting.
@@ -275,7 +341,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     def server_xmatch( args, req, res ); _server_match( false, args, req, res ); end
     def _server_match( inc, args, req, res )
         userb = args.first
-        if script = @user_scripts[userb]
+        if ( script = @user_scripts[userb] ) and script.respond_to? :matches
             if req.query['remove'] 
                 script.remove_match( regexp( req.query['remove'] ) )
             end
@@ -296,7 +362,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Turns scripts on/off.
     def server_toggle( args, req, res )
         userb = args.first
-        if @user_scripts[userb]
+        if @user_scripts[userb] and @user_scripts[userb].respond_to? :active
             scriptset = ( @db["script:#{ userb }"] || {} )
             scriptset[:active] = !@user_scripts[userb].active
             @user_scripts[userb].active = scriptset[:active]
@@ -309,7 +375,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     def server_config( args, req, res )
         userb = args.first
         script = @user_scripts[userb]
-        if script
+        if script and script.respond_to? :matches
             title = script.name
             include_matches, exclude_matches = script.matches.partition { |k,v| v }.map do |matches|
                 matches.map { |k,v| "<option>#{ k.respond_to?( :to_str ) ? k.to_str : k.inspect }</option>" }
@@ -345,7 +411,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 </form>
             }
         end
-        res.body = installer_html( title, content ) 
+        res.body = installer_html( req, title, content ) 
     end
 
     # Script installation process.
@@ -372,12 +438,12 @@ class MouseHole < WEBrick::HTTPProxyServer
                 caused by restarting MouseHole during installation or clearing your
                 temp folder.</p>
                 </div>}
-            res.body = installer_html( title, content ) 
+            res.body = installer_html( req, title, content ) 
         end
     end
 
     # Script installation page.
-    def installer_pane( e, url )
+    def installer_pane( req, e, url )
         if e.obj.respond_to? :matches
             include_matches, exclude_matches = e.obj.matches.partition { |k,v| v }.map do |matches|
                 matches.map { |k,v| "<option>#{ k.inspect }</option>" }
@@ -419,11 +485,11 @@ class MouseHole < WEBrick::HTTPProxyServer
             <input type="button" name="dont_do_it" value="Cancel" onClick="history.back()" />
             </div>]
         end
-        installer_html( "Install User Script: #{ e.script_path }?", content )
+        installer_html( req, "Install User Script: #{ e.script_path }?", content )
     end
 
     # Wrapper HTML for all configuration/installation pages.
-    def installer_html( title, content )
+    def installer_html( req, title, content )
         %[<html><head><title>#{ title }</title>
         <style type="text/css">
         body {
@@ -544,7 +610,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         -->
         </script>
         <body>
-        <div id="banner"><a href="#{ home_url }"><img src="#{ home_url }images/mouseHole-neon.png" 
+        <div id="banner"><a href="#{ home_url req }"><img src="#{ home_url req }images/mouseHole-neon.png" 
             border="0" /></a></div>
         #{ content }
         </body></html>]
@@ -595,14 +661,11 @@ class MouseHole < WEBrick::HTTPProxyServer
         def []=( k, v ); @db[ k ] = v; end
         def execute( req, res )
             return unless rewrite_proc
-            @document = read_xhtml res.body
-            return unless @document
             rewrite_proc[ req, res ]
-            document.write( res.body = "" )
         end
 
-        def read_xhtml_from( uri )
-            read_xhtml( open( uri ) { |f| f.read } )
+        def read_xhtml_from( uri, full_doc = false )
+            read_xhtml( open( uri ) { |f| f.read }, full_doc )
         end
 
     end
@@ -637,6 +700,13 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Handles requests to the various mounts.  Also ripped from Catapult.
     def scripted_mounts( request, response )
         # return not_allowed( request, response ) unless  MouseHole.allow_from? request.peeraddr[2].strip 
+        each_fresh_script do |path, script|
+            hostmap = {script.mount.to_s => "mh", "mouse.#{ script.mount }" => "mouse.hole"}
+            if hostmap.has_key? request.request_uri.host
+                response['location'] = "http://#{ hostmap[ request.request_uri.host ] }/#{ script.mount }#{ request.request_uri.path }"
+                raise WEBrick::HTTPStatus::Found
+            end
+        end
         unless request.path_info.to_s.size > 1 
             mousehole_home( request, response ) 
             no_cache response
@@ -672,13 +742,13 @@ class MouseHole < WEBrick::HTTPProxyServer
                 require 'tidy'
                 require 'htree/htmlinfo'
                 Tidy.path = libtidy
-                def xhtml html
-                    Tidy.open :output_xhtml => true do |tidy|
+                def xhtmlize html, full_doc = false
+                    Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
                         tidy.clean( html )
                     end
                 end
-                def read_xhtml html
-                    REXML::Document.new( xhtml( html ) )
+                def read_xhtml html, full_doc = false
+                    REXML::Document.new( xhtmlize( html, full_doc ) )
                 end
                 break
             end
@@ -688,12 +758,12 @@ class MouseHole < WEBrick::HTTPProxyServer
         unless libtidy
             puts "No Tidy found."
             require 'htree'
-            def xhtml html
+            def xhtmlize html, full_doc = false
                out = ""
-               HTree( str ).display_xml( out )
+               HTree( html ).display_xml( out )
                out
             end
-            def read_xhtml html
+            def read_xhtml html, full_doc = false
                 HTree.parse( html ).each_child do |child|
                     if child.respond_to? :qualified_name
                         if child.qualified_name == 'html'
