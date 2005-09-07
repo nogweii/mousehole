@@ -796,8 +796,11 @@ class MouseHole < WEBrick::HTTPProxyServer
         libdirs = ['/usr/lib', '/usr/local/lib'] + $:
         libdirs << File.dirname( RUBYSCRIPT2EXE_APPEXE ) if defined? RUBYSCRIPT2EXE_APPEXE
         libdirs.each do |libdir|
-            libtidy = File.join( libdir, "libtidy.#{ Config::CONFIG['arch'] =~ /win32/ ? 'dll' : 'so' }" )
-            if File.exists? libtidy
+            libtidies = ['so']
+            libtidies.unshift 'dll' if Config::CONFIG['arch'] =~ /win32/
+            libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
+            libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
+            if libtidy = libtidies.find { |lib| File.exists? lib } 
                 puts "Found Tidy! #{ libtidy }"
                 require 'tidy'
                 require 'htree/htmlinfo'

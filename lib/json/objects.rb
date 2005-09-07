@@ -122,7 +122,7 @@ class Array
     # +lexer+:: Lexer object to use
     def from_json(lexer)
       raise "A JSON Array must begin with '['" if (lexer.nextclean != "[")
-      return if lexer.nextclean == ']'
+      return [] if lexer.nextclean == ']'
       lexer.back
       loop {
 	self << lexer.nextvalue
