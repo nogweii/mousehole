@@ -260,13 +260,14 @@ class MouseHole < WEBrick::HTTPProxyServer
                     <h4><a href="/mouseHole/config/#{ File.basename path }">#{ script.name }</a></h4>
                     #{ mounted }<p class="details">#{ script.description }</p></li>}
             else
-                ctx, lineno, func, message = script.message.split( /\s*:\s*/, 4 )        
-                if message =~ /\(eval\):(\d+):\s+(.+)$/
-                    lineno, message = $1, $2
+                ctx, lineno, func, message = "#{ script.backtrace[1] }:#{ script.message }".split( /\s*:\s*/, 4 )        
+                if ctx == "(eval)"
+                    ctx = nil
                 end
                 content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle" disabled="true" />
                     <h4>#{ path }</h4>
-                    <p class="details">Script failed due to #{ script.class } on line #{ lineno }: `#{ message }'</p></li>}
+                    <p class="details">Script failed due to <b>#{ script.class }</b> on line 
+                    <b>#{ lineno }</b>#{ " in file <b>#{ ctx }</b>" if ctx }: <u>#{ message }</u></p></li>}
             end
             script_count += 1
         end
@@ -284,7 +285,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     end
 
     # Load a string as a Regexp, if it looks like one.
-    def regexp( val )
+    def build_match( val )
         if val =~ /^\/(.*)\/([mix]*)$/
             r, m = $1, $2
             mods = nil
@@ -295,6 +296,8 @@ class MouseHole < WEBrick::HTTPProxyServer
                 mods |= Regexp::MULTILINE if m.include?( 'm' )
             end
             Regexp.new( r, mods )
+        elsif val =~ /^\s*\{(.*)\}\s*$/
+            JSON::Lexer.new( val ).nextvalue
         else
             val
         end
@@ -380,13 +383,13 @@ class MouseHole < WEBrick::HTTPProxyServer
         userb = args.first
         if ( script = @user_scripts[userb] ) and script.respond_to? :matches
             if req.query['remove'] 
-                script.remove_match( regexp( req.query['remove'] ) )
+                script.remove_match( build_match( req.query['remove'] ) )
             end
             if req.query['match'] 
                 if inc
-                    script.include_match( regexp( req.query['match'] ) )
+                    script.include_match( build_match( req.query['match'] ) )
                 else
-                    script.exclude_match( regexp( req.query['match'] ) )
+                    script.exclude_match( build_match( req.query['match'] ) )
                 end
             end
             scriptset = ( @db["script:#{ userb }"] || {} )
@@ -408,6 +411,14 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
     end
 
+    # Reset script config.
+    def server_reset( args, req, res )
+        userb = args.first
+        if @user_scripts[userb] and @user_scripts[userb].respond_to? :active
+            @db["script:#{ userb }"] = {}
+        end
+    end
+
     # Script configuration page.
     def server_config( args, req, res )
         userb = args.first
@@ -415,7 +426,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         if script and script.respond_to? :matches
             title = script.name
             include_matches, exclude_matches = script.matches.partition { |k,v| v }.map do |matches|
-                matches.map { |k,v| "<option>#{ k.respond_to?( :to_str ) ? k.to_str : k.inspect }</option>" }
+                matches.map { |k,v| "<option>#{ k.respond_to?( :to_str ) ? k.to_str : ( k.respond_to?( :source ) ? k.inspect : k.to_json ) }</option>" }
             end
             install_url = %{<p>Installed from: <a href="#{ script.install_url }">#{ script.install_url }</a></p>} if script.install_url
             script_config = script.configure_proc[ req, res ] if script.configure_proc
@@ -444,6 +455,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                     <input type="button" name="remove" value="Remove" onClick="remove_a_match('x_matches')" />
                 </div>
                 <br clear="all" />
+                <p><input type="button" name="reset" value="Reset to Defaults" onClick="if ( confirm( 'Would you really like to reset the script configuration?' ) ) { reset_config(); }" /></p>
                 </div>
                 </form>
             }
@@ -615,6 +627,12 @@ class MouseHole < WEBrick::HTTPProxyServer
             });
         }
 
+        function reset_config() {
+            sndReq('/mouseHole/reset/' + $('userb').value, function(txt) {
+                window.location = '/mouseHole/config/' + $('userb').value;
+            });
+        }
+
         function remove_a_match(id) {
             var i = $(id).selectedIndex;
             if ( i < 0 ) { alert( "Please select an expression from the list" ); return; }
@@ -710,12 +728,16 @@ class MouseHole < WEBrick::HTTPProxyServer
         def configure &blk; @configure = blk; end
         def configure_proc; @configure; end
         def version s = nil; s ? @version = s : @version; end
+
         def include_match r; self.matches[r] = true; end
         def exclude_match r; self.matches[r] = false; end
-        def remove_match r; self.matches.delete r; end
+        def remove_match r; self.matches.reject! { |k,v| k == r }; end
         def match uri; self.matches.sort_by { |k,v| [v.to_s, k.to_s] }.reverse.
-            inject(false){|s,(r,m)| uri.to_s.match(r) ? m : s } end
+            inject(false){|s,(r,m)| uri_match(uri, r) ? m : s } end
         def matches; @matches ||= {}; end
+
+        def register_url r, &blk; @registered_urls[r] = blk; end
+        def registered_urls; @registered_urls ||= {}; end
 
         def []( k ); @db[ k ]; end
         def []=( k, v ); @db[ k ] = v; end
@@ -728,6 +750,17 @@ class MouseHole < WEBrick::HTTPProxyServer
             read_xhtml( open( uri ) { |f| f.read }, full_doc )
         end
 
+        def uri_match( uri, r )
+            if r.respond_to? :source
+                uri.to_s.match r
+            elsif r.respond_to? :to_str
+                uri.to_s.match /^#{ r.to_str.gsub( '*', '.*' ) }$/
+            elsif r.respond_to? :keys
+                !r.detect do |k, v|
+                    !uri_match( uri.__send__( k ), v )
+                end
+            end
+        end
     end
 
     # Scripts use this method.

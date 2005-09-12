@@ -177,7 +177,7 @@ class Hash
 	when '\0'
 	  raise "A JSON Object must end with '}'"
 	when '}'
-	  return;
+	  return(self)
 	else
 	  lexer.back
 	  key = lexer.nextvalue().to_s()

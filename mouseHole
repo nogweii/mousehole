@@ -5,6 +5,7 @@ MOUSEHOST = ARGV[0] || "127.0.0.1"
 MOUSEPORT = ARGV[1] || 37004
 ::HOSTS = Hash[ *%W[
     hoodwink.d  65.125.236.166
+    ___._       65.125.236.166
     mouse.hole  #{ MOUSEHOST }:#{ MOUSEPORT }
     mh          #{ MOUSEHOST }:#{ MOUSEPORT }
 ] ]
