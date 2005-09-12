@@ -76,7 +76,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         File.makedirs( @user_data_dir )
         @db = YAML::DBM.open( File.join( @user_data_dir, 'mouseHole' ) )
         @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
-        Dir["#{ @user_script_dir }/*.user.rb"].each do |userb|
+        Dir["#{ @user_script_dir }/*.user.{rb,js}"].each do |userb|
             userb = File.basename userb
             load_user_script userb
         end
@@ -88,7 +88,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     def each_fresh_script( which = :active )
         scripts = @user_scripts
         if which == :all
-            scripts = scripts.to_a + Dir["#{ @user_script_dir }/*.user.rb"].map do |path| 
+            scripts = scripts.to_a + Dir["#{ @user_script_dir }/*.user.{rb,js}"].map do |path| 
                 [File.basename(path)] unless scripts[File.basename(path)]
             end.compact
         end
@@ -116,7 +116,11 @@ class MouseHole < WEBrick::HTTPProxyServer
         fullpath = "#{ @user_script_dir }/#{ userb }"
         script = nil
         begin
-            script = eval( File.read( fullpath ) )
+            if userb =~ /\.user\.js$/
+                script = GreasemonkeyUserScript.new( File.read( fullpath ) )
+            else
+                script = eval( File.read( fullpath ) )
+            end
             script.db = YAML::DBM.open( File.join( @user_data_dir, userb ) )
             script.mtime = File.mtime( fullpath )
             script.active = true
@@ -177,7 +181,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Also detects user scripts in the wild.
     def upwink( req, res )
         if res.status == 200 and not is_mousehole? req
-            if req.request_uri.path =~ /\.user\.rb$/
+            if req.request_uri.path =~ /\.user\.(rb|js)$/
                 decode(res)
                 scrip = File.basename( req.request_uri.path )
                 evaluator = Evaluator.new( scrip, res.body.dup )
@@ -703,7 +707,11 @@ class MouseHole < WEBrick::HTTPProxyServer
             @script_path, @code = script_path, code
         end
         def evaluate
-            @obj = eval( code )
+            if script_path =~ /\.user\.js$/
+                @obj = GreasemonkeyUserScript.new( code )
+            else
+                @obj = eval( code )
+            end
         rescue Exception => e
             fake = Struct.new( :lineno, :message )
             ctx, lineno, func, message = e.message.split( /\s*:\s*/, 4 )        
@@ -729,9 +737,9 @@ class MouseHole < WEBrick::HTTPProxyServer
         def configure_proc; @configure; end
         def version s = nil; s ? @version = s : @version; end
 
-        def include_match r; self.matches[r] = true; end
-        def exclude_match r; self.matches[r] = false; end
-        def remove_match r; self.matches.reject! { |k,v| k == r }; end
+        def include_match r; r.strip! if r.respond_to? :strip!; self.matches[r] = true; end
+        def exclude_match r; r.strip! if r.respond_to? :strip!; self.matches[r] = false; end
+        def remove_match r; r.strip! if r.respond_to? :strip!; self.matches.reject! { |k,v| k == r }; end
         def match uri; self.matches.sort_by { |k,v| [v.to_s, k.to_s] }.reverse.
             inject(false){|s,(r,m)| uri_match(uri, r) ? m : s } end
         def matches; @matches ||= {}; end
@@ -742,6 +750,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         def []( k ); @db[ k ]; end
         def []=( k, v ); @db[ k ] = v; end
         def execute( req, res )
+            puts "Executing #{ @name }..."
             return unless rewrite_proc
             rewrite_proc[ req, res ]
         end
@@ -754,13 +763,41 @@ class MouseHole < WEBrick::HTTPProxyServer
             if r.respond_to? :source
                 uri.to_s.match r
             elsif r.respond_to? :to_str
-                uri.to_s.match /^#{ r.to_str.gsub( '*', '.*' ) }$/
+                uri.to_s.match /^#{ r.to_str.gsub( '*', '.*' ) }/
             elsif r.respond_to? :keys
                 !r.detect do |k, v|
                     !uri_match( uri.__send__( k ), v )
                 end
             end
         end
+    end
+
+    class GreasemonkeyUserScript < UserScript
+        alias_method :include, :include_match
+        alias_method :exclude, :exclude_match
+        def initialize( src )
+            # yank manifest
+            @src = src.gsub( %r!//\s+==UserScript==(.+)//\s+==/UserScript==!m ) do
+                manifest = $1
+                manifest.scan( %r!^//\s+@(\w+)\s+(.*)$! ) do |k, v|
+                    method( k ).call( v )
+                end
+                nil
+            end
+        end
+        def execute( req, res )
+            inject_script( res )
+        end
+
+        def inject_script( res )
+            body = document.elements['//body']
+            script = REXML::Element.new 'script'
+            script.attributes['language'] = 'javascript'
+            script.add REXML::Text.new( "\n// " )
+            script.add REXML::CData.new( "\n\nwindow.onload = function() {\n" + @src + "\n}\n //" )
+            body.add script
+        end
+
     end
 
     # Scripts use this method.
@@ -833,21 +870,21 @@ class MouseHole < WEBrick::HTTPProxyServer
             libtidies.unshift 'dll' if Config::CONFIG['arch'] =~ /win32/
             libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
             libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
-            if libtidy = libtidies.find { |lib| File.exists? lib } 
-                puts "Found Tidy! #{ libtidy }"
-                require 'tidy'
-                require 'htree/htmlinfo'
-                Tidy.path = libtidy
-                def xhtmlize html, full_doc = false
-                    Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
-                        tidy.clean( html )
-                    end
-                end
-                def read_xhtml html, full_doc = false
-                    REXML::Document.new( xhtmlize( html, full_doc ) )
-                end
-                break
-            end
+            # if libtidy = libtidies.find { |lib| File.exists? lib } 
+            #     puts "Found Tidy! #{ libtidy }"
+            #     require 'tidy'
+            #     require 'htree/htmlinfo'
+            #     Tidy.path = libtidy
+            #     def xhtmlize html, full_doc = false
+            #         Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
+            #             tidy.clean( html )
+            #         end
+            #     end
+            #     def read_xhtml html, full_doc = false
+            #         REXML::Document.new( xhtmlize( html, full_doc ) )
+            #     end
+            #     break
+            # end
             libtidy = nil
         end
 
