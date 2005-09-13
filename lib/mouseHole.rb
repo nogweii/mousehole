@@ -83,6 +83,25 @@ class MouseHole < WEBrick::HTTPProxyServer
 
         debug( "MouseHole proxy config: #{ config.inspect }" )
     end
+    
+    # intercept URLs for redirection
+    def service(req, res)
+        if %w{GET POST PUT HEAD}.include? req.request_method and req.request_uri.path.match('^/\.mouseHole/')
+            # do redirections
+            rewrote = false
+            each_fresh_script do |path, script|
+                break if rewrote = script.rewrite_uri(req, res)
+            end
+            if not rewrote
+                super(req, res)
+            else
+                res['Content-Length'] = res.body.length
+                no_cache res
+            end
+        else
+            super(req, res)
+        end
+    end
 
     # Loops through scripts, ensuring freshness, reloading as needed
     def each_fresh_script( which = :active )
@@ -733,6 +752,9 @@ class MouseHole < WEBrick::HTTPProxyServer
         def mount_proc; @mount[1] if @mount; end
         def rewrite &blk; @rewrite = blk; end
         def rewrite_proc; @rewrite; end
+        def register_url(r, &blk)
+            self.registered << [r, blk]
+        end
         def configure &blk; @configure = blk; end
         def configure_proc; @configure; end
         def version s = nil; s ? @version = s : @version; end
@@ -741,11 +763,25 @@ class MouseHole < WEBrick::HTTPProxyServer
         def exclude_match r; r.strip! if r.respond_to? :strip!; self.matches[r] = false; end
         def remove_match r; r.strip! if r.respond_to? :strip!; self.matches.reject! { |k,v| k == r }; end
         def match uri; self.matches.sort_by { |k,v| [v.to_s, k.to_s] }.reverse.
-            inject(false){|s,(r,m)| uri_match(uri, r) ? m : s } end
+            inject(false){|s,(r,m)| match_uri(uri, r) ? m : s } end
+        def rewrite_uri(req, res)
+            uri = req.request_uri.clone
+            path = uri.path.split('/')
+            path.delete('')
+            path.shift if path[0] == '.mouseHole'
+            path = path.unshift('').join('/')
+            uri.path = path
+            self.registered.find do |(m,blk)|
+                if match_uri(uri, m)
+                    blk[uri, req, res]
+                    true
+                else
+                    false
+                end
+            end
+        end
         def matches; @matches ||= {}; end
-
-        def register_url r, &blk; @registered_urls[r] = blk; end
-        def registered_urls; @registered_urls ||= {}; end
+        def registered; @registered ||= []; end
 
         def []( k ); @db[ k ]; end
         def []=( k, v ); @db[ k ] = v; end
@@ -759,14 +795,14 @@ class MouseHole < WEBrick::HTTPProxyServer
             read_xhtml( open( uri ) { |f| f.read }, full_doc )
         end
 
-        def uri_match( uri, r )
+        def match_uri( uri, r )
             if r.respond_to? :source
                 uri.to_s.match r
             elsif r.respond_to? :to_str
                 uri.to_s.match /^#{ r.to_str.gsub( '*', '.*' ) }/
             elsif r.respond_to? :keys
                 !r.detect do |k, v|
-                    !uri_match( uri.__send__( k ), v )
+                    !match_uri( uri.__send__( k ), v )
                 end
             end
         end
