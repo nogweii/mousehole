@@ -74,6 +74,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         @user_data_dir, @user_script_dir = File.join( MH, 'data' ), File.join( MH, 'userScripts' )
         File.makedirs( @user_script_dir )
         File.makedirs( @user_data_dir )
+        @started = Time.now
         @db = YAML::DBM.open( File.join( @user_data_dir, 'mouseHole' ) )
         @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
         Log.conf = @conf
@@ -340,6 +341,15 @@ class MouseHole < WEBrick::HTTPProxyServer
             c.title "MouseHole User Scripts: #{ uri.host }"
             c.link "#{ uri }"
             c.description "A list of user script installed for the MouseHole proxy at #{ uri }"
+
+            c.item do |item|
+                item.title "MouseHole"
+                item.link "#{ uri }"
+                item.guid "#{ uri }"
+                item.dc :creator, "MouseHole"
+                item.dc :date, @started
+                item.description "The primary MouseHole configuration page."
+            end
 
             each_fresh_script :all do |path, script|
                 if script
