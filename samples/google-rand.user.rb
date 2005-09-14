@@ -42,11 +42,11 @@ function sndReq(action, handler) {
   http.send(null);
 }
 
-(function () {
+function pingMouseHole() {
   sndReq('#{ reg 'ping' }', function(txt) {
     alert(txt);
   })
-})();
+}
     EOF
   end
   
@@ -56,6 +56,6 @@ function sndReq(action, handler) {
     @counter[host] ||= 0
     @counter[host] += 1
     response['Content-Type'] = 'text/plain'
-    response.body = "You've hit #{ request.request_uri.host } #{ @counter[host] } times"
+    response.body = "Random ##{ @counter[host] } from #{ request.request_uri.host }: #{ rand 100 }"
   end
 end
