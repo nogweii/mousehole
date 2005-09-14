@@ -210,7 +210,6 @@ class MouseHole < WEBrick::HTTPProxyServer
                 req.header.delete 'if-none-match'
             else
                 req.header['if-none-match'][0].gsub!( /^(.)MH-/, '\1' )
-                p req
             end
         end
 
@@ -265,7 +264,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                             next unless script.match req.request_uri
                             unless doc
                                 decode(res)
-                                doc = script.read_xhtml( res.body, true )
+                                doc = script.read_xhtml( res.body, true ) rescue nil
                                 res.body = ""
                             end
                             script.do_rewrite( doc, req, res )
@@ -1051,21 +1050,21 @@ class MouseHole < WEBrick::HTTPProxyServer
             libtidies.unshift 'dll' if Config::CONFIG['arch'] =~ /win32/
             libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
             libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
-            # if libtidy = libtidies.find { |lib| File.exists? lib } 
-            #     puts "Found Tidy! #{ libtidy }"
-            #     require 'tidy'
-            #     require 'htree/htmlinfo'
-            #     Tidy.path = libtidy
-            #     def xhtmlize html, full_doc = false
-            #         Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
-            #             tidy.clean( html )
-            #         end
-            #     end
-            #     def read_xhtml html, full_doc = false
-            #         REXML::Document.new( xhtmlize( html, full_doc ) )
-            #     end
-            #     break
-            # end
+            if libtidy = libtidies.find { |lib| File.exists? lib } 
+                puts "Found Tidy! #{ libtidy }"
+                require 'tidy'
+                require 'htree/htmlinfo'
+                Tidy.path = libtidy
+                def xhtmlize html, full_doc = false
+                    Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
+                        tidy.clean( html )
+                    end
+                end
+                def read_xhtml html, full_doc = false
+                    REXML::Document.new( xhtmlize( html, full_doc ) )
+                end
+                break
+            end
             libtidy = nil
         end
 
