@@ -794,13 +794,24 @@ class MouseHole < WEBrick::HTTPProxyServer
             end
         end
 
+        def registered_uri_fallback( script_uri, req, res )
+            script_uri.instance_variables.each do |iv|
+                v = script_uri.instance_variable_get( iv )
+                req.request_uri.instance_variable_set( iv, v ) if v
+            end
+            false
+        end
+
         def do_registered_uri( script_uri, req, res )
             registered_uris.find do |m, registered_proc|
-                p [script_uri, m, match_uri(script_uri, m)]
                 if match_uri(script_uri, m)
                     self.request, self.response = req, res
-                    registered_proc[script_uri, req, res]
-                    return true
+                    if registered_proc
+                        registered_proc[script_uri, req, res]
+                        return true
+                    else
+                        return registered_uri_fallback(script_uri, req, res)
+                    end
                 end
             end
             return false
@@ -977,10 +988,10 @@ class MouseHole < WEBrick::HTTPProxyServer
         each_fresh_script do |path, script|
             if mount =~ /^\/*#{ script.mount }$/
                 script.do_mount( path_parts.join( '/' ), request, response )
-                break
+                return
             end
         end
-        raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'" unless obj
+        raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'"
     end
 
     class UserScript
