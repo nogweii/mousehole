@@ -65,12 +65,12 @@ class MouseHole < WEBrick::HTTPProxyServer
             else
                 mousehole_home( req, res )
             end
-            no_cache res
+            # no_cache res
         end
         mount( "/favicon.ico", nil )
 
         # read user scripts on startup
-        @temp_scripts, @user_scripts = {}, {}
+        @etags, @temp_scripts, @user_scripts = {}, {}, {}
         @user_data_dir, @user_script_dir = File.join( MH, 'data' ), File.join( MH, 'userScripts' )
         File.makedirs( @user_script_dir )
         File.makedirs( @user_data_dir )
@@ -100,7 +100,6 @@ class MouseHole < WEBrick::HTTPProxyServer
                 super(req, res)
             else
                 res['Content-Length'] = res.body.length
-                no_cache res
             end
         else
             super(req, res)
@@ -160,11 +159,28 @@ class MouseHole < WEBrick::HTTPProxyServer
         @user_scripts[userb] = script
     end
 
+    # Generates a new MouseHole Etag from a regular Etag.
+    def mousetag( etag )
+        if etag and not etag.empty?
+            etag = "#{ etag }"
+            etag[1,0] = "MH-"
+        end
+        etag
+    end
+
     # Removes cache headers from HTTPResponse +res+.
+    def check_cache( res )
+        if res['etag']
+            res['etag'] = mousetag( res['etag'] )
+            @etags[res['etag'].to_s] = Time.now
+        end
+    end
+
+    # Prevents caching, even on the back button
     def no_cache( res )
         res['etag'] = nil
         res['expires'] = nil
-        res['cache-control'] = 'no-cache'
+        res['cache-control'] = 'max-age=0, must-revalidate'
         res['pragma'] = 'no-cache'
     end
 
@@ -183,7 +199,22 @@ class MouseHole < WEBrick::HTTPProxyServer
 
     # Before sending a request, alter outgoing headers.
     def prewink( req, res )
+        # proxy handles the gzip encoding
         req.header['accept-encoding'] = ['gzip','deflate']
+
+        # watch for possible HTML, allow caching of proxy-processed content
+        if req.header['accept'].to_s =~ %r!text/html!
+            etag = req.header['if-none-match'].to_s
+            unless etag and @etags[etag]
+                req.header.delete 'if-modified-since'
+                req.header.delete 'if-none-match'
+            else
+                req.header['if-none-match'][0].gsub!( /^(.)MH-/, '\1' )
+                p req
+            end
+        end
+
+        # allow user scripts to modify the request headers
         # each_fresh_script do |path, script|
         #     next unless script.match req.request_uri
         #     script.prewrite( req, res )
@@ -203,43 +234,46 @@ class MouseHole < WEBrick::HTTPProxyServer
     # After response is received, pass to qualifying scripts.
     # Also detects user scripts in the wild.
     def upwink( req, res )
-        if res.status == 200 and not is_mousehole? req
+        unless is_mousehole? req
             if req.request_uri.path =~ /\.user\.(rb|js)$/
-                decode(res)
-                scrip = File.basename( req.request_uri.path )
-                evaluator = Evaluator.new( scrip, res.body.dup )
-                t = Tempfile.new( scrip )
-                t.write evaluator.code
-                evaluator.script_id = t.path
-                @temp_scripts[t.path] = [t, req.request_uri.to_s, scrip]
-                t.close
-                Thread.start( evaluator ) do |e|
-                    e.taint
-                    $SAFE = 4
-                    e.evaluate
-                end.join
-                res.body = installer_pane( req, evaluator, "#{ home_uri req }mouseHole/install" )
-                res['content-type'] = 'text/html'
-                res['content-length'] = res.body.length
-                no_cache res
-                res.setup_header
+                check_cache res
+                if res.status == 200
+                    decode(res)
+                    scrip = File.basename( req.request_uri.path )
+                    evaluator = Evaluator.new( scrip, res.body.dup )
+                    t = Tempfile.new( scrip )
+                    t.write evaluator.code
+                    evaluator.script_id = t.path
+                    @temp_scripts[t.path] = [t, req.request_uri.to_s, scrip]
+                    t.close
+                    Thread.start( evaluator ) do |e|
+                        e.taint
+                        $SAFE = 4
+                        e.evaluate
+                    end.join
+                    res.body = installer_pane( req, evaluator, "#{ home_uri req }mouseHole/install" )
+                    res['content-type'] = 'text/html'
+                    res['content-length'] = res.body.length
+                end
             elsif @conf[:rewrites_on]
                 case res.content_type
                 when /^text\/html/, /^application\/xhtml+xml/
-                    doc = nil
-                    each_fresh_script do |path, script|
-                        next unless script.match req.request_uri
-                        unless doc
-                            decode(res)
-                            doc = script.read_xhtml( res.body, true )
-                            res.body = ""
+                    check_cache res
+                    if res.status == 200
+                        doc = nil
+                        each_fresh_script do |path, script|
+                            next unless script.match req.request_uri
+                            unless doc
+                                decode(res)
+                                doc = script.read_xhtml( res.body, true )
+                                res.body = ""
+                            end
+                            script.do_rewrite( doc, req, res )
                         end
-                        script.do_rewrite( doc, req, res )
-                    end
-                    if doc
-                        doc.write( res.body = "" )
-                        res['content-length'] = res.body.length
-                        no_cache res
+                        if doc
+                            doc.write( res.body = "" )
+                            res['content-length'] = res.body.length
+                        end
                     end
                 end
             end
@@ -798,7 +832,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
 
         def do_rewrite( doc, req, res )
-            if rewrite_proc
+            if doc and rewrite_proc
                 self.request, self.response, self.document = req, res, doc
                 rewrite_proc[ req, res ]
             end
@@ -848,6 +882,9 @@ class MouseHole < WEBrick::HTTPProxyServer
                 end
             end
         end
+
+        # deprecated stuff, remove in a few versions
+        def install_url=( url ); @install_uri = url; end
     end
 
     class StarmonkeyUserScript < UserScript
@@ -985,7 +1022,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
         unless request.path_info.to_s.size > 1 
             mousehole_home( request, response ) 
-            no_cache response
+            # no_cache response
             return
         end
         raise WEBrick::HTTPStatus::NotFound, "Mounts turned off." unless @conf[:mounts_on]
