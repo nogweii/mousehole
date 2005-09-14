@@ -76,6 +76,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         File.makedirs( @user_data_dir )
         @db = YAML::DBM.open( File.join( @user_data_dir, 'mouseHole' ) )
         @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
+        Log.conf = @conf
         Dir["#{ @user_script_dir }/*.user.{rb,js}"].each do |userb|
             userb = File.basename userb
             load_user_script userb
@@ -86,11 +87,13 @@ class MouseHole < WEBrick::HTTPProxyServer
     
     # intercept URLs for redirection
     def service(req, res)
-        if %w{GET POST PUT HEAD}.include? req.request_method and req.request_uri.path.match('^/\.mouseHole/')
+        if %w{GET POST PUT HEAD}.include? req.request_method
             # do redirections
             rewrote = false
             each_fresh_script do |path, script|
-                break if rewrote = script.rewrite_uri(req, res)
+                if req.request_uri.path =~ %r!^/#{ script.token }/!
+                    rewrote = script.do_registered_uri( URI($'), req, res )
+                end
             end
             if not rewrote
                 super(req, res)
@@ -120,7 +123,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                     puts( "Reloading #{ path }, as it has changed." )
                     @user_scripts[path] = script = load_user_script( path )
                 end
-                active = script.respond_to?(:active) and script.active
+                active = script.active if script.respond_to?(:active)
                 next unless active or which == :all
                 yield path, script
             end
@@ -136,7 +139,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         script = nil
         begin
             if userb =~ /\.user\.js$/
-                script = GreasemonkeyUserScript.new( File.read( fullpath ) )
+                script = StarmonkeyUserScript.new( File.read( fullpath ) )
             else
                 script = eval( File.read( fullpath ) )
             end
@@ -213,8 +216,8 @@ class MouseHole < WEBrick::HTTPProxyServer
                     e.taint
                     $SAFE = 4
                     e.evaluate
-                end
-                res.body = installer_pane( req, evaluator, "#{ home_url req }mouseHole/install" )
+                end.join
+                res.body = installer_pane( req, evaluator, "#{ home_uri req }mouseHole/install" )
                 res['content-type'] = 'text/html'
                 res['content-length'] = res.body.length
                 no_cache res
@@ -230,8 +233,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                             doc = script.read_xhtml( res.body, true )
                             res.body = ""
                         end
-                        script.document = doc
-                        script.execute( req, res )
+                        script.do_rewrite( doc, req, res )
                     end
                     if doc
                         doc.write( res.body = "" )
@@ -244,11 +246,11 @@ class MouseHole < WEBrick::HTTPProxyServer
     end
 
     # MouseHole's own top URL.
-    def home_url( req ); is_mousehole?( req ) ? "/" : "http://#{ @config[:BindAddress] }:#{ @config[:Port ] }/"; end
+    def home_uri( req ); is_mousehole?( req ) ? "/" : "http://#{ @config[:BindAddress] }:#{ @config[:Port ] }/"; end
 
     # The home page, primary configuration.
     def mousehole_home( req, res )
-        title = "Welcome to MouseHole v#{ VERSION }"
+        title = "MouseHole"
         content = %{
             <style type="text/css">
                 .details { clear: both; margin: 12px 8px; }
@@ -451,14 +453,16 @@ class MouseHole < WEBrick::HTTPProxyServer
             include_matches, exclude_matches = script.matches.partition { |k,v| v }.map do |matches|
                 matches.map { |k,v| "<option>#{ k.respond_to?( :to_str ) ? k.to_str : ( k.respond_to?( :source ) ? k.inspect : k.to_json ) }</option>" }
             end
-            install_url = %{<p>Installed from: <a href="#{ script.install_url }">#{ script.install_url }</a></p>} if script.install_url
-            script_config = script.configure_proc[ req, res ] if script.configure_proc
+            if script.install_uri
+                install_uri = %{<p>Installed from: <a href="#{ script.install_uri }">#{ script.install_uri }</a></p>} 
+            end
+            script_config = script.do_configure( req, res )
             content = %{
                 <form method="POST">
                 <input type="hidden" id="userb" value="#{ userb }" />
                 <div id="installer">
                 <h1>#{ script.name }</h1>
-                <p>#{ script.description }</p>#{ install_url }#{ script_config }
+                <p>#{ script.description }</p>#{ install_uri }#{ script_config }
                 <div class="matchset">
                     <h2>Included pages</h2>
                     <select class="matches" id="i_matches" size="6">
@@ -490,10 +494,10 @@ class MouseHole < WEBrick::HTTPProxyServer
     def server_install( args, req, res )
         userb = req.query[ 'script_id' ]
         if req.query[ 'do_it' ] and @temp_scripts[userb] and File.exists? userb
-            temp, install_url, path = @temp_scripts[userb]
+            temp, install_uri, path = @temp_scripts[userb]
 
             scriptset = ( @db["script:#{ path }"] || {} )
-            scriptset[:install_url] = install_url
+            scriptset[:install_uri] = install_uri
             @db["script:#{ path }"] = scriptset
 
             File.copy( userb, File.join( @user_script_dir, path ) )
@@ -515,13 +519,13 @@ class MouseHole < WEBrick::HTTPProxyServer
     end
 
     # Script installation page.
-    def installer_pane( req, e, url )
+    def installer_pane( req, e, uri )
         if e.obj.respond_to? :matches
             include_matches, exclude_matches = e.obj.matches.partition { |k,v| v }.map do |matches|
                 matches.map { |k,v| "<option>#{ k.inspect }</option>" }
             end
             content = %[
-            <form action='#{ url }' method='POST'>
+            <form action='#{ uri }' method='POST'>
             <p class="tiny">Detected MouseHole script: #{ e.script_path }</p>
             <div id="installer">
             <h1>#{ e.obj.name }</h1>
@@ -551,7 +555,8 @@ class MouseHole < WEBrick::HTTPProxyServer
             <div id="installer">
             <p>The following script has been deemed invalid due to failure during
             the security and testing check.</p>
-            <p>#{ e.obj.message }</p>
+            <p>#{ e.obj.message } [<a href="javascript:void(0);" onClick="document.getElementById('backtrace').style.display='';">backtrace</a>]</p>
+            <div id="backtrace" style="display:none;"><pre>#{ e.obj.backtrace }</pre></div>
             <h2>View Source</h2>
             <textarea cols="20" rows="30">#{ WEBrick::HTMLUtils::escape e.code }</textarea>
             <input type="button" name="dont_do_it" value="Cancel" onClick="history.back()" />
@@ -689,7 +694,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         -->
         </script>
         <body>
-        <div id="banner"><a href="#{ home_url req }"><img src="#{ home_url req }images/mouseHole-neon.png" 
+        <div id="banner"><a href="#{ home_uri req }"><img src="#{ home_uri req }images/mouseHole-neon.png" 
             border="0" /></a></div>
         #{ content }
         </body></html>]
@@ -727,15 +732,15 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
         def evaluate
             if script_path =~ /\.user\.js$/
-                @obj = GreasemonkeyUserScript.new( code )
+                @obj = StarmonkeyUserScript.new( code )
             else
                 @obj = eval( code )
             end
         rescue Exception => e
-            fake = Struct.new( :lineno, :message )
-            ctx, lineno, func, message = e.message.split( /\s*:\s*/, 4 )        
+            fake = Struct.new( :lineno, :message, :backtrace )
+            ctx, lineno, func, message = "#{ e.backtrace[0] }:#{ e.message }".split( /\s*:\s*/, 4 )        
             message = "#{ e.class } on line #{ lineno }: `#{ message }'"
-            @obj = fake.new( lineno, message )
+            @obj = fake.new( lineno, message, e.backtrace * "\n" )
         end
     end
 
@@ -743,8 +748,12 @@ class MouseHole < WEBrick::HTTPProxyServer
     # through the proxy or scripts can mount themselves as applications.
     class UserScript
 
-        attr_accessor :document, :matches, :db, :request, :response, :mtime, :active, :install_url
+        attr_accessor :document, :matches, :db, :request, :response, :mtime, :active, :install_uri, :token
 
+        def initialize
+            @token = WEBrick::Utils::random_string 32
+        end
+        def debug msg; Log.debug( msg ); end
         def name s = nil; s ? @name = s : @name; end
         def namespace s = nil; s ? @namespace = s : @namespace; end
         def description s = nil; s ? @description = s : @description; end
@@ -752,9 +761,10 @@ class MouseHole < WEBrick::HTTPProxyServer
         def mount_proc; @mount[1] if @mount; end
         def rewrite &blk; @rewrite = blk; end
         def rewrite_proc; @rewrite; end
-        def register_url(r, &blk)
-            self.registered << [r, blk]
+        def register_uri(r = "", &blk)
+            self.registered_uris << [r, blk]
         end
+        def reg( r = "" ); "/#{ @token }/#{ r }"; end
         def configure &blk; @configure = blk; end
         def configure_proc; @configure; end
         def version s = nil; s ? @version = s : @version; end
@@ -764,31 +774,42 @@ class MouseHole < WEBrick::HTTPProxyServer
         def remove_match r; r.strip! if r.respond_to? :strip!; self.matches.reject! { |k,v| k == r }; end
         def match uri; self.matches.sort_by { |k,v| [v.to_s, k.to_s] }.reverse.
             inject(false){|s,(r,m)| match_uri(uri, r) ? m : s } end
-        def rewrite_uri(req, res)
-            uri = req.request_uri.clone
-            path = uri.path.split('/')
-            path.delete('')
-            path.shift if path[0] == '.mouseHole'
-            path = path.unshift('').join('/')
-            uri.path = path
-            self.registered.find do |(m,blk)|
-                if match_uri(uri, m)
-                    blk[uri, req, res]
-                    true
-                else
-                    false
-                end
-            end
-        end
         def matches; @matches ||= {}; end
-        def registered; @registered ||= []; end
+        def registered_uris; @registered_uris ||= []; end
 
         def []( k ); @db[ k ]; end
         def []=( k, v ); @db[ k ] = v; end
-        def execute( req, res )
-            puts "Executing #{ @name }..."
-            return unless rewrite_proc
-            rewrite_proc[ req, res ]
+
+        def do_configure( req, res )
+            if configure_proc
+                self.request, self.response = req, res
+                configure_proc[ req, res ] 
+            end
+        end
+
+        def do_rewrite( doc, req, res )
+            if rewrite_proc
+                self.request, self.response, self.document = req, res, doc
+                rewrite_proc[ req, res ]
+            end
+        end
+
+        def do_registered_uri( script_uri, req, res )
+            registered_uris.find do |m, registered_proc|
+                p [script_uri, m, match_uri(script_uri, m)]
+                if match_uri(script_uri, m)
+                    self.request, self.response = req, res
+                    registered_proc[script_uri, req, res]
+                    return true
+                end
+            end
+            return false
+        end
+
+        def do_mount( path, req, res )
+            self.request, self.response = req, res
+            b = mount_proc[ path ]
+            res.body = b if b
         end
 
         def read_xhtml_from( uri, full_doc = false )
@@ -808,32 +829,95 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
     end
 
-    class GreasemonkeyUserScript < UserScript
+    class StarmonkeyUserScript < UserScript
         alias_method :include, :include_match
         alias_method :exclude, :exclude_match
         def initialize( src )
+            super()
             # yank manifest
-            @src = src.gsub( %r!//\s+==UserScript==(.+)//\s+==/UserScript==!m ) do
+            @src = starmonkey_wrap( src.gsub( %r!//\s+==UserScript==(.+)//\s+==/UserScript==!m ) do
                 manifest = $1
                 manifest.scan( %r!^//\s+@(\w+)\s+(.*)$! ) do |k, v|
                     method( k ).call( v )
                 end
                 nil
+            end )
+            register_uri do
+                response['content-type'] = 'text/javascript'
+                response.body = @src
+            end
+            rewrite do
+                inject_script
             end
         end
-        def execute( req, res )
-            inject_script( res )
-        end
 
-        def inject_script( res )
+        def inject_script
             body = document.elements['//body']
+            body ||= document.elements['/html']
+            return unless body
+
             script = REXML::Element.new 'script'
-            script.attributes['language'] = 'javascript'
-            script.add REXML::Text.new( "\n// " )
-            script.add REXML::CData.new( "\n\nwindow.onload = function() {\n" + @src + "\n}\n //" )
+            script.attributes['type'] = 'text/javascript'
+            script.attributes['src'] = reg
+
             body.add script
         end
 
+        # Lovingly wraps a greasemonkey script in starmonkey proper
+        def starmonkey_wrap( content )
+                     <<-EOJS.gsub( /^ {12}/, '' )
+            (function() {
+            
+            // Starmonkey: an implementation of the greasemonkey APIs for mouseHole
+            
+            function starmonkey_API_URI(path) {
+                var request_uri = "http://" + window.location.host;
+                if ( window.location.port != 80 ) {
+                    request_uri = request_uri + ":" + window.location.port;
+                }
+                request_uri = request_uri + "/#{ @token }/" + path;
+            
+                if ( argments.length > 1 ) {
+                    var parameters = arguments[1];
+                    var sep = "?";
+                    for (var name in parameters) {
+                        request_uri = request_uri + sep + encode(name) + "=" + encode(parameters[name]);
+                        sep = "&";
+                    }
+                }
+            
+                return request_uri;
+            }
+            
+            function GM_registerMenuCommand() {
+            // Worth implementing?  How?
+                alert('GM_registerMenuCommand is not implemented in starmonkey');
+            }
+            
+            function GM_xmlhttpRequest(details) {
+            }
+            
+            function GM_setValue(name, value) {
+                starmonkey_API('setValue', name, value);
+            }
+            
+            function GM_getValue(name, defawlt) {
+                starmonkey_API('getValue', name, defawlt);
+            }
+            
+            function GM_log(message) {
+                var parameters = { 'message': message };
+                if ( arguments.length > 1 ) {
+                    parameters['level'] = arguments[1];
+                }
+                starmonkey_API('log', parameters);
+            }
+            
+            #{ content }
+            
+            })();
+            EOJS
+        end
     end
 
     # Scripts use this method.
@@ -852,15 +936,20 @@ class MouseHole < WEBrick::HTTPProxyServer
     class Log
         @@mouselog = Logger.new( File.join( MH, "mouse.log"  ) )
         @@mouselog.level = Logger::DEBUG
+        @@conf = {}
+
+        def self.conf=( conf )
+            @@conf = conf
+        end
 
         def self.method_missing( meth , *args )
-            @@mouselog.send( meth , *args )
+            @@mouselog.send( meth , *args ) if @@conf[:logs_on]
         end
     end
 
     # Log messages, unless.
     def debug( msg )
-        Log.debug( msg ) if @conf[:logs_on]
+        Log.debug( msg )
     end
 
     # Handles requests to the various mounts.  Also ripped from Catapult.
@@ -886,12 +975,10 @@ class MouseHole < WEBrick::HTTPProxyServer
         mount = path_parts.shift.to_s.strip
         STDERR.puts( "Get mount '#{mount}'")
         each_fresh_script do |path, script|
-            obj = script if mount =~ /^\/*#{ script.mount }$/
-        end
-        if obj
-            obj.request, obj.response = request, response
-            b = obj.mount_proc[ path_parts.join( '/' ) ]
-            response.body = b if b
+            if mount =~ /^\/*#{ script.mount }$/
+                script.do_mount( path_parts.join( '/' ), request, response )
+                break
+            end
         end
         raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'" unless obj
     end
