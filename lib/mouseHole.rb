@@ -266,7 +266,6 @@ class MouseHole < WEBrick::HTTPProxyServer
                             unless doc
                                 decode(res)
                                 doc = script.read_xhtml( res.body, true ) rescue nil
-                                res.body = ""
                             end
                             script.do_rewrite( doc, req, res )
                         end
@@ -616,7 +615,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         <style type="text/css">
         body {
             color: #333;
-            background-color: #ddd;
+            background: url(#{ home_uri req }images/mouseHole-tile.png);
             font: normal 11pt verdana, arial, sans-serif;
             padding: 20px 0px;
         }
@@ -639,7 +638,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         }
         .quickactions {
             background-color: #ddd;
-            padding: 4px;
+            padding: 4px 8px;
             font-size: 11px;
         }
         .quickactions ul {
@@ -664,10 +663,10 @@ class MouseHole < WEBrick::HTTPProxyServer
         }
         #installer {
             background-color: #f7f7ff;
-            border: solid 4px #333;
+            border: solid 10px #111;
             width: 540px;
             margin: 0 auto;
-            padding: 4px 10px;
+            padding: 8px 10px;
         }
         textarea {
             font-size: 10px;
@@ -738,7 +737,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         -->
         </script>
         <body>
-        <div id="banner"><a href="#{ home_uri req }"><img src="#{ home_uri req }images/mouseHole-neon.png" 
+        <div id="banner"><a href="#{ home_uri req }"><img src="#{ home_uri req }images/mouseHole-burn.gif" 
             border="0" /></a></div>
         #{ content }
         </body></html>]
@@ -1057,7 +1056,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 require 'htree/htmlinfo'
                 Tidy.path = libtidy
                 def xhtmlize html, full_doc = false
-                    Tidy.open :output_xhtml => true, :show_body_only => !full_doc do |tidy|
+                    Tidy.open :output_xhtml => true, :char_encoding => 'raw', :show_body_only => !full_doc do |tidy|
                         tidy.clean( html )
                     end
                 end

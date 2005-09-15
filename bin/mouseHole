@@ -15,7 +15,7 @@ begin
         :BindAddress => MOUSEHOST,
         :Port => MOUSEPORT
     )
-    appdir = File.dirname(__FILE__)
+    appdir = Dir.pwd
     if defined? RUBYSCRIPT2EXE_APPEXE
         # Object::constants.grep( /^RUBYSCRIPT/ ).each do |c|
         #     puts "#{c}: #{ Object::const_get c }"
