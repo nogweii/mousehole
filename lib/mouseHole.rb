@@ -65,7 +65,7 @@ class MouseHole < WEBrick::HTTPProxyServer
             else
                 mousehole_home( req, res )
             end
-            # no_cache res
+            no_cache res
         end
         mount( "/favicon.ico", nil )
 
@@ -179,11 +179,12 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Prevents caching, even on the back button
     def no_cache( res )
         res['etag'] = nil
-        res['expires'] = nil
-        res['cache-control'] = 'max-age=0, must-revalidate'
+        res['expires'] = 'Sat, 01 Jan 2000 00:00:00 GMT'
+        res['cache-control'] = 'no-store, no-cache'
         res['pragma'] = 'no-cache'
     end
 
+    # MrCode's gzip decoding from WonderLand!
     def decode(res)
         case res['content-encoding']
         when 'gzip':
@@ -1021,7 +1022,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
         unless request.path_info.to_s.size > 1 
             mousehole_home( request, response ) 
-            # no_cache response
+            no_cache response
             return
         end
         raise WEBrick::HTTPStatus::NotFound, "Mounts turned off." unless @conf[:mounts_on]
