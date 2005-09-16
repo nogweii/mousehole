@@ -493,7 +493,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     def server_reset( args, req, res )
         userb = args.first
         if @user_scripts[userb] and @user_scripts[userb].respond_to? :active
-            @db["script:#{ userb }"] = {}
+            @db["script:#{ userb }"] = {:install_uri => @user_scripts[userb].install_uri}
             load_user_script userb
         end
     end
@@ -569,6 +569,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 <p>The script you are trying to install is gone.  This may have been
                 caused by restarting MouseHole during installation or clearing your
                 temp folder.</p>
+                <p><strong>Return to the previous page and hit refresh.  Then, try installing again.</strong></p>
                 </div>}
             res.body = installer_html( req, title, content ) 
         end
