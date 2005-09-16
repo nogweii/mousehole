@@ -1,5 +1,43 @@
 #!/usr/bin/env ruby
+require 'optparse'
+require 'ostruct'
 require './lib/mouseHole'
+
+options = OpenStruct.new
+options.tidy = true
+
+opts = OptionParser.new do |opts|
+    opts.banner = "Usage: mouseHole [options] [ip] [port]"
+
+    opts.separator ""
+    opts.separator "Specific options:"
+
+    opts.on("-t", "--[no-]tidy",    "Use Tidy?") do |t|
+        options.tidy = t
+    end
+
+    opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+        options.verbose = v
+    end
+
+    opts.separator ""
+    opts.separator "Common options:"
+  
+    # No argument, shows at tail.  This will print an options summary.
+    # Try it and see!
+    opts.on_tail("-h", "--help", "Show this message") do
+      puts opts
+      exit
+    end
+  
+    # Another typical switch to print the version.
+    opts.on_tail("--version", "Show version") do
+      puts MouseHole::VERSION
+      exit
+    end
+end
+
+opts.parse! ARGV
 
 MOUSEHOST = ARGV[0] || "127.0.0.1"
 MOUSEPORT = ARGV[1] || 37004
@@ -10,8 +48,7 @@ MOUSEPORT = ARGV[1] || 37004
     mh          #{ MOUSEHOST }:#{ MOUSEPORT }
 ] ]
 
-begin
-    server = MouseHole::new( 
+    server = MouseHole::new( options,
         :BindAddress => MOUSEHOST,
         :Port => MOUSEPORT
     )
@@ -25,7 +62,3 @@ begin
     server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( appdir, 'images' ) )
     trap( :INT ) { server.shutdown }
     server.start
-rescue Exception
-    MouseHole::Log.error "Error in MouseHole: #{$!}"
-    server.shutdown
-end

@@ -44,11 +44,12 @@ class MouseHole < WEBrick::HTTPProxyServer
 
     attr_accessor :user_scripts, :temp_scripts
 
-    def initialize(*args)
+    def initialize(options, *args)
         super(*args)
         config.merge!(
             :RequestCallback => method( :prewink ),
-            :ProxyContentHandler => method( :upwink )
+            :ProxyContentHandler => method( :upwink ),
+            :Logger => Log
         )
 
         # various dispatch
@@ -70,6 +71,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         mount( "/favicon.ico", nil )
 
         # read user scripts on startup
+        @mousehole_utils = make_utility_mixin options
         @etags, @temp_scripts, @user_scripts = {}, {}, {}
         @user_data_dir, @user_script_dir = File.join( MH, 'data' ), File.join( MH, 'userScripts' )
         File.makedirs( @user_script_dir )
@@ -82,8 +84,6 @@ class MouseHole < WEBrick::HTTPProxyServer
             userb = File.basename userb
             load_user_script userb
         end
-
-        debug( "MouseHole proxy config: #{ config.inspect }" )
     end
     
     # intercept URLs for redirection
@@ -120,7 +120,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 @user_scripts.delete(path)
             else
                 if script.nil? or File.mtime(fullpath) > ( script.mtime rescue Time.at(0) )
-                    puts( "Reloading #{ path }, as it has changed." )
+                    Log.debug( "Reloading #{ path }, as it has changed." )
                     @user_scripts[path] = script = load_user_script( path )
                 end
                 active = script.active if script.respond_to?(:active)
@@ -149,6 +149,7 @@ class MouseHole < WEBrick::HTTPProxyServer
             ( @db["script:#{ userb }"] || {} ).each do |k,v|
                 script.method( "#{ k }=" ).call( v )
             end
+            script.extend @mousehole_utils
             if script.mount
                 ::HOSTS[script.mount.to_s] = "#{ MOUSEHOST }:#{ MOUSEPORT }"
                 ::HOSTS["mouse.#{ script.mount }"] = "#{ MOUSEHOST }:#{ MOUSEPORT }"
@@ -265,7 +266,13 @@ class MouseHole < WEBrick::HTTPProxyServer
                             next unless script.match req.request_uri
                             unless doc
                                 decode(res)
-                                doc = script.read_xhtml( res.body, true ) rescue nil
+                                charset = 'raw'
+                                if "#{ res['content-type'] }" =~ /charset=([\w\-]+)/
+                                    charset = $1
+                                elsif res.body =~ %r!<meta[^>]+charset\s*=\s*([\w\-]+)!
+                                    charset = $1
+                                end
+                                doc = script.read_xhtml( res.body, true, charset ) rescue nil
                             end
                             script.do_rewrite( doc, req, res )
                         end
@@ -287,10 +294,12 @@ class MouseHole < WEBrick::HTTPProxyServer
         title = "MouseHole"
         content = %{
             <style type="text/css">
-                .details { clear: both; margin: 12px 8px; }
-                .mount, h4, input { float: left; margin: 0 8px; }
-                h4 { margin: 0; }
+                .details { font-size: 12px; clear: both; margin: 12px 8px; }
+                .mount, h4 { float: left; font-size: 15px; margin: 9px 8px 0px 8px; }
+                input { float: left; margin: 3px 8px; }
+                h4 { margin: 6px 0; font-size: 18px; font-weight: normal; }
                 li { list-style: none; }
+                #scripts li input { margin-top: 10px; }
             </style>
             <div id="installer">
                 <div class="quickactions">
@@ -300,18 +309,19 @@ class MouseHole < WEBrick::HTTPProxyServer
                 <li><input type="checkbox" name="mounts" onClick="sndReq('/mouseHole/toggle_mounts')"
                     #{ 'checked' if @conf[:mounts_on] } /> Script mounts on?</li>
                 <li class="wide"><input type="checkbox" name="logs" onClick="sndReq('/mouseHole/toggle_logs')"
-                    #{ 'checked' if @conf[:logs_on] } /> Log debug messages to mouse.log?</li>
+                    #{ 'checked' if @conf[:logs_on] } /> Log debug messages to mouse.log?</li></ul>
                 </div>
                 <h1>Scripts Installed</h1>
                 <p>The following scripts are installed on your mouseHole.  Check marks indicate
                 that the script is active.  You may toggle it on or off.  Click on the script's
-                name to configure it.</p><ul>}
+                name to configure it.</p>
+                <div id="scripts"><ul>}
             script_count = 0
         each_fresh_script :all do |path, script|
             mounted = nil
             if script.respond_to? :mount
                 if script.mount
-                    mounted = %{<p class="mount">[<a href="/#{ script.mount }">/#{ script.mount }]</a></p>}
+                    mounted = %{<p class="mount">[<a href="/#{ script.mount }">/#{ script.mount }</a>]</p>}
                 end
                 content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle"
                     onClick="sndReq('/mouseHole/toggle/#{ File.basename path }')"
@@ -330,8 +340,8 @@ class MouseHole < WEBrick::HTTPProxyServer
             end
             script_count += 1
         end
-        content += %{<li><p>#{ script_count.zero? ? "No" : script_count } user scripts installed.</p></li>}
-        content += %{</ul>
+        content += %{<li><p>#{ script_count.zero? ? "No" : script_count } user scripts installed.</p></li>
+                </ul></div>
                 <div class="quickactions">
                 <p>MouseHole #{ VERSION } by <a href="http://whytheluckystiff.net/">why the lucky stiff</a><br />
                     Running on ruby #{ ::RUBY_VERSION } (#{ ::RUBY_RELEASE_DATE }) [#{ ::RUBY_PLATFORM }]</li>
@@ -417,7 +427,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         body = %{<div id="installer"><h1>Database dump</h1>}
         databases.each do |area, db|
             body += %[<h2>#{ area }</h2>
-                <pre>#{ db.inject( {} ) { |hsh,(k,v)| hsh[k] = v; hsh }.to_yaml }</pre>]
+                <pre style="font-size: 10px;">#{ db.inject( {} ) { |hsh,(k,v)| hsh[k] = v; hsh }.to_yaml }</pre>]
         end
         unless req.query['all']
             body += %{<p><a href="?all=1">Show all data</a></p>}
@@ -445,20 +455,20 @@ class MouseHole < WEBrick::HTTPProxyServer
     end
 
     # Adds/removes URL matches from user scripts.
-    def server_imatch( args, req, res ); _server_match( true, args, req, res ); end
-    def server_xmatch( args, req, res ); _server_match( false, args, req, res ); end
-    def _server_match( inc, args, req, res )
+    def server_match( args, req, res )
         userb = args.first
         if ( script = @user_scripts[userb] ) and script.respond_to? :matches
             if req.query['remove'] 
-                script.remove_match( build_match( req.query['remove'] ) )
+                script.remove_match( req.query['remove'].to_i )
+            end
+            if req.query['include_match']
+                script.include_match( build_match( req.query['include_match'] ) )
+            end
+            if req.query['exclude_match'] 
+                script.exclude_match( build_match( req.query['exclude_match'] ) )
             end
             if req.query['match'] 
-                if inc
-                    script.include_match( build_match( req.query['match'] ) )
-                else
-                    script.exclude_match( build_match( req.query['match'] ) )
-                end
+                script.matches[req.query['at'].to_i][0] = build_match( req.query['match'] )
             end
             scriptset = ( @db["script:#{ userb }"] || {} )
             scriptset[:matches] = @user_scripts[userb].matches
@@ -484,6 +494,17 @@ class MouseHole < WEBrick::HTTPProxyServer
         userb = args.first
         if @user_scripts[userb] and @user_scripts[userb].respond_to? :active
             @db["script:#{ userb }"] = {}
+            load_user_script userb
+        end
+    end
+
+    # Uninstall script.
+    def server_uninstall( args, req, res )
+        userb = args.first
+        if @user_scripts[userb] and @user_scripts[userb].respond_to? :active
+            @user_scripts.delete userb
+            File.delete File.join( @user_script_dir, userb )
+            @db.delete "script:#{ userb }"
         end
     end
 
@@ -493,9 +514,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         script = @user_scripts[userb]
         if script and script.respond_to? :matches
             title = script.name
-            include_matches, exclude_matches = script.matches.partition { |k,v| v }.map do |matches|
-                matches.map { |k,v| "<option>#{ k.respond_to?( :to_str ) ? k.to_str : ( k.respond_to?( :source ) ? k.inspect : k.to_json ) }</option>" }
-            end
+            all_matches = script.matches.map { |k,v| "<option>#{ v ? "include" : "exclude" }: #{ k.respond_to?( :to_str ) ? k.to_str : ( k.respond_to?( :source ) ? k.inspect : k.to_json ) }</option>" }
             if script.install_uri
                 install_uri = %{<p>Installed from: <a href="#{ script.install_uri }">#{ script.install_uri }</a></p>} 
             end
@@ -507,25 +526,19 @@ class MouseHole < WEBrick::HTTPProxyServer
                 <h1>#{ script.name }</h1>
                 <p>#{ script.description }</p>#{ install_uri }#{ script_config }
                 <div class="matchset">
-                    <h2>Included pages</h2>
-                    <select class="matches" id="i_matches" size="6">
-                    #{ include_matches * "\n" }
+                    <h2>URL Matching Rules</h2>
+                    <select class="matches" id="all_matches" size="6">
+                    #{ all_matches * "\n" }
                     </select>
-                    <input type="button" name="add" value="Add..." onClick="prompt_new_match('i_matches')" />
-                    <input type="button" name="edit" value="Edit..." onClick="prompt_edit_match('i_matches')" />
-                    <input type="button" name="remove" value="Remove" onClick="remove_a_match('i_matches')" />
-                </div>
-                <div class="matchset">
-                    <h2>Excluded pages</h2>
-                    <select class="matches" id="x_matches" size="6">
-                    #{ exclude_matches * "\n" }
-                    </select>
-                    <input type="button" name="add" value="Add..." onClick="prompt_new_match('x_matches')" />
-                    <input type="button" name="edit" value="Edit..." onClick="prompt_edit_match('x_matches')" />
-                    <input type="button" name="remove" value="Remove" onClick="remove_a_match('x_matches')" />
+                    <input type="button" name="add" value="Include..." onClick="prompt_new_match('all_matches', 'include')" />
+                    <input type="button" name="add" value="Exclude..." onClick="prompt_new_match('all_matches', 'exclude')" />
+                    <input type="button" name="edit" value="Edit..." onClick="prompt_edit_match('all_matches')" />
+                    <input type="button" name="remove" value="Remove" onClick="remove_a_match('all_matches')" />
                 </div>
                 <br clear="all" />
-                <p><input type="button" name="reset" value="Reset to Defaults" onClick="if ( confirm( 'Would you really like to reset the script configuration?' ) ) { reset_config(); }" /></p>
+                <p><input type="button" name="reset" value="Reset to Defaults" onClick="if ( confirm( 'Would you really like to reset the script configuration?' ) ) { reset_config(); }" />
+                   <input type="button" name="uninstall" value="Uninstall" onClick="if ( confirm( 'Would you really like to uninstall #{ userb }?' ) ) { uninstall_script(); }" />
+                </p>
                 </div>
                 </form>
             }
@@ -564,9 +577,7 @@ class MouseHole < WEBrick::HTTPProxyServer
     # Script installation page.
     def installer_pane( req, e, uri )
         if e.obj.respond_to? :matches
-            include_matches, exclude_matches = e.obj.matches.partition { |k,v| v }.map do |matches|
-                matches.map { |k,v| "<option>#{ k.inspect }</option>" }
-            end
+            all_matches = e.obj.matches.map { |k,v| "<option>#{ v ? "include" : "exclude" }: #{ k.respond_to?( :to_str ) ? k.to_str : ( k.respond_to?( :source ) ? k.inspect : k.to_json ) }</option>" }
             content = %[
             <form action='#{ uri }' method='POST'>
             <p class="tiny">Detected MouseHole script: #{ e.script_path }</p>
@@ -574,15 +585,9 @@ class MouseHole < WEBrick::HTTPProxyServer
             <h1>#{ e.obj.name }</h1>
             <p>#{ e.obj.description }</p>
             <div class="matchset">
-                <h2>Included pages</h2>
+                <h2>URL Matching Rules</h2>
                 <select class="matches" size="6">
-                #{ include_matches * "\n" }
-                </select>
-            </div>
-            <div class="matchset">
-                <h2>Excluded pages</h2>
-                <select class="matches" size="6">
-                #{ exclude_matches * "\n" }
+                #{ all_matches * "\n" }
                 </select>
             </div>
             <br clear="all" />
@@ -615,7 +620,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         <style type="text/css">
         body {
             color: #333;
-            background: url(#{ home_uri req }images/mouseHole-tile.png);
+            background: url(#{ home_uri req }images/mouseHole-stripe.png);
             font: normal 11pt verdana, arial, sans-serif;
             padding: 20px 0px;
         }
@@ -630,10 +635,9 @@ class MouseHole < WEBrick::HTTPProxyServer
         }
         .matchset {
             float: left;
-            width: 270px;
+            width: 540px;
         }
         .matchset input {
-            width: 80px;
             margin-right: 3px;
         }
         .quickactions {
@@ -655,7 +659,7 @@ class MouseHole < WEBrick::HTTPProxyServer
             clear: both;
         }
         select.matches {
-            width: 260px;
+            width: 520px;
         }
         #banner {
             text-align: center;
@@ -682,19 +686,20 @@ class MouseHole < WEBrick::HTTPProxyServer
         function prompt_edit_match(id) {
             var i = $(id).selectedIndex;
             if ( i < 0 ) { alert( "Please select an expression from the list" ); return; }
-            var match = prompt("Modify the URL of the page below." + match_note, $(id).options[i].value);
-            if (!match) return;
-            sndReq('/mouseHole/' + id[0] + 'match/' + $('userb').value + '?remove=' + escape($(id).options[i].value) + "&match=" + escape(match), function(txt) {
-                $(id).options[i] = new Option(match, match);
+            var match = $(id).options[i].text.match( /(.*): (.*)/ );
+            match[2] = prompt("Modify the URL of the page below." + match_note, match[2] );
+            if (!match[2]) return;
+            sndReq('/mouseHole/match/' + $('userb').value + '?at=' + i + "&match=" + escape(match[2]), function(txt) {
+                $(id).options[i] = new Option(match[1] + ": " + match[2]);
             });
         }
 
-        function prompt_new_match(id) {
+        function prompt_new_match(id, prefix) {
             var match = prompt("Enter a new URL below." + match_note, "http://foo.com/*");
             if (!match) return;
             var opts = document.getElementById(id).options
-            sndReq('/mouseHole/' + id[0] + 'match/' + $('userb').value + '?match=' + escape(match), function(txt) {
-                opts[opts.length] = new Option(match, match);
+            sndReq('/mouseHole/match/' + $('userb').value + '?' + prefix + '_match=' + escape(match), function(txt) {
+                opts[opts.length] = new Option(prefix + ": " + match);
             });
         }
 
@@ -704,10 +709,16 @@ class MouseHole < WEBrick::HTTPProxyServer
             });
         }
 
+        function uninstall_script() {
+            sndReq('/mouseHole/uninstall/' + $('userb').value, function(txt) {
+                window.location = '/';
+            });
+        }
+
         function remove_a_match(id) {
             var i = $(id).selectedIndex;
             if ( i < 0 ) { alert( "Please select an expression from the list" ); return; }
-            sndReq('/mouseHole/' + id[0] + 'match/' + $('userb').value + '?remove=' + escape($(id).options[i].value), function(txt) {
+            sndReq('/mouseHole/match/' + $('userb').value + '?remove=' + i, function(txt) {
                 $(id).options[i] = null;
             });
         }
@@ -807,17 +818,21 @@ class MouseHole < WEBrick::HTTPProxyServer
         def register_uri(r = "", &blk)
             self.registered_uris << [r, blk]
         end
-        def reg( r = "" ); "/#{ @token }/#{ r }"; end
-        def configure &blk; @configure = blk; end
-        def configure_proc; @configure; end
-        def version s = nil; s ? @version = s : @version; end
+        def reg( r = "" ); "/#{ @token }/#{ r }" end
+        def configure &blk; @configure = blk end
+        def configure_proc; @configure end
+        def version s = nil; s ? @version = s : @version end
 
-        def include_match r; r.strip! if r.respond_to? :strip!; self.matches[r] = true; end
-        def exclude_match r; r.strip! if r.respond_to? :strip!; self.matches[r] = false; end
-        def remove_match r; r.strip! if r.respond_to? :strip!; self.matches.reject! { |k,v| k == r }; end
-        def match uri; self.matches.sort_by { |k,v| [v.to_s, k.to_s] }.reverse.
-            inject(false){|s,(r,m)| match_uri(uri, r) ? m : s } end
-        def matches; @matches ||= {}; end
+        def include_match r, i = nil; add_match r, true, i end
+        def exclude_match r, i = nil; add_match r, false, i end
+        def add_match r, m, i = nil
+            r.strip! if r.respond_to? :strip!
+            if i; self.matches[i+1, 0] = [r, m]
+            else; self.matches << [r, m] end
+        end
+        def remove_match i; self.matches.delete_at i end
+        def match uri; self.matches.inject(false){|s,(r,m)| match_uri(uri, r) ? m : s } end
+        def matches; @matches ||= []; end
         def registered_uris; @registered_uris ||= []; end
 
         def []( k ); @db[ k ]; end
@@ -866,8 +881,8 @@ class MouseHole < WEBrick::HTTPProxyServer
             res.body = b if b
         end
 
-        def read_xhtml_from( uri, full_doc = false )
-            read_xhtml( open( uri ) { |f| f.read }, full_doc )
+        def read_xhtml_from( uri, full_doc = false, charset = 'raw' )
+            read_xhtml( open( uri ) { |f| f.read }, full_doc, charset )
         end
 
         def match_uri( uri, r )
@@ -1004,11 +1019,6 @@ class MouseHole < WEBrick::HTTPProxyServer
         end
     end
 
-    # Log messages, unless.
-    def debug( msg )
-        Log.debug( msg )
-    end
-
     # Handles requests to the various mounts.  Also ripped from Catapult.
     def scripted_mounts( request, response )
         # return not_allowed( request, response ) unless  MouseHole.allow_from? request.peeraddr[2].strip 
@@ -1027,60 +1037,71 @@ class MouseHole < WEBrick::HTTPProxyServer
         raise WEBrick::HTTPStatus::NotFound, "Mounts turned off." unless @conf[:mounts_on]
      
         obj = nil
-        debug( "MouseHole#process_request has  path_info #{request.path_info}" )
+        Log.debug( "MouseHole#process_request has  path_info #{request.path_info}" )
         path_parts = request.path_info.split( '/' ).reject { |x| x.to_s.strip.size == 0 }
         mount = path_parts.shift.to_s.strip
-        STDERR.puts( "Get mount '#{mount}'")
         each_fresh_script do |path, script|
             if mount =~ /^\/*#{ script.mount }$/
                 script.do_mount( path_parts.join( '/' ), request, response )
+                no_cache response
                 return
             end
         end
         raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'"
     end
 
-    class UserScript
-        # Search for libtidy
-        libtidy = nil
-        libdirs = ['/usr/lib', '/usr/local/lib'] + $:
-        libdirs << File.dirname( RUBYSCRIPT2EXE_APPEXE ) if defined? RUBYSCRIPT2EXE_APPEXE
-        libdirs.each do |libdir|
-            libtidies = ['so']
-            libtidies.unshift 'dll' if Config::CONFIG['arch'] =~ /win32/
-            libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
-            libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
-            if libtidy = libtidies.find { |lib| File.exists? lib } 
-                puts "Found Tidy! #{ libtidy }"
-                require 'tidy'
-                require 'htree/htmlinfo'
-                Tidy.path = libtidy
-                def xhtmlize html, full_doc = false
-                    Tidy.open :output_xhtml => true, :char_encoding => 'raw', :show_body_only => !full_doc do |tidy|
-                        tidy.clean( html )
-                    end
-                end
-                def read_xhtml html, full_doc = false
-                    REXML::Document.new( xhtmlize( html, full_doc ) )
-                end
-                break
-            end
+    def make_utility_mixin( options )
+        @mousehole_utils = Module.new do
             libtidy = nil
-        end
-
-        unless libtidy
-            puts "No Tidy found."
-            require 'htree'
-            def xhtmlize html, full_doc = false
-               out = ""
-               HTree( html ).display_xml( out )
-               out
+            if options.tidy
+                # Search for libtidy
+                libdirs = ['/usr/lib', '/usr/local/lib'] + $:
+                libdirs << File.dirname( RUBYSCRIPT2EXE_APPEXE ) if defined? RUBYSCRIPT2EXE_APPEXE
+                libdirs.each do |libdir|
+                    libtidies = ['so']
+                    libtidies.unshift 'dll' if Config::CONFIG['arch'] =~ /win32/
+                    libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
+                    libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
+                    if libtidy = libtidies.find { |lib| File.exists? lib } 
+                        Log.debug "Found Tidy! #{ libtidy }"
+                        require 'tidy'
+                        require 'htree/htmlinfo'
+                        Tidy.path = libtidy
+                        def xhtmlize html, full_doc = false, charset = nil
+                            if charset =~ /utf-?8/i
+                                charset = 'utf8'
+                            else
+                                charset = 'raw'
+                            end
+                            Tidy.open :output_xhtml => true, 
+                                      :char_encoding => charset, 
+                                      :show_body_only => !full_doc do |tidy|
+                                tidy.clean( html )
+                            end
+                        end
+                        def read_xhtml html, *args
+                            REXML::Document.new( xhtmlize( html, *args ) )
+                        end
+                        break
+                    end
+                    libtidy = nil
+                end
             end
-            def read_xhtml html, full_doc = false
-                HTree.parse( html ).each_child do |child|
-                    if child.respond_to? :qualified_name
-                        if child.qualified_name == 'html'
-                            return HTree::Doc.new( child ).to_rexml
+
+            unless libtidy
+                Log.debug "No Tidy found."
+                require 'htree'
+                def xhtmlize html, full_doc = false, charset = nil
+                   out = ""
+                   HTree( html ).display_xml( out )
+                   out
+                end
+                def read_xhtml html, *args
+                    HTree.parse( html ).each_child do |child|
+                        if child.respond_to? :qualified_name
+                            if child.qualified_name == 'html'
+                                return HTree::Doc.new( child ).to_rexml
+                            end
                         end
                     end
                 end
