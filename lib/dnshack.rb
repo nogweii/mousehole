@@ -17,6 +17,20 @@ class InternetMessageIO
 end
 end
 
+class << TCPSocket
+    alias_method :_open, :open
+    def open( *args )
+        if defined? ::HOSTS and ::HOSTS.has_key? args.first
+            if ::HOSTS[args[0]] =~ /:/
+                args[0], args[1] = ::HOSTS[args[0]].split(/:/)
+            else
+                args[0] = ::HOSTS[args[0]]
+            end
+        end
+        _open( *args )
+    end
+end
+
 # Hacks URI to allow a host of ___._
 # Actually, it basically just hacks URI to allow any host for HTTP URLs
 # but it does it in somewhat of a roundabout way

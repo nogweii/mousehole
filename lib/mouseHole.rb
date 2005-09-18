@@ -30,10 +30,10 @@ class MouseHole < WEBrick::HTTPProxyServer
     TOKEN = WEBrick::Utils::random_string 32
 
     # locate ~/.mouseHole
-    [
-        [ENV['HOME'], File.join( ENV['HOME'], '.mouseHole' )],
-        [ENV['APPDATA'], File.join( ENV['APPDATA'], 'MouseHole' )]
-    ].each do |home_top, home_dir|
+    homes = []
+    homes << [ENV['HOME'], File.join( ENV['HOME'], '.mouseHole' )] if ENV['HOME']
+    homes << [ENV['APPDATA'], File.join( ENV['APPDATA'], 'MouseHole' )] if ENV['APPDATA']
+    homes.each do |home_top, home_dir|
         next unless home_top
         if File.exists? home_top
             File.makedirs( home_dir )
