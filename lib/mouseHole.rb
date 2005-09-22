@@ -296,10 +296,9 @@ class MouseHole < WEBrick::HTTPProxyServer
             <style type="text/css">
                 .details { font-size: 12px; clear: both; margin: 12px 8px; }
                 .mount, h4 { float: left; font-size: 15px; margin: 9px 8px 0px 8px; }
-                input { float: left; margin: 3px 8px; }
                 h4 { margin: 6px 0; font-size: 18px; font-weight: normal; }
                 li { list-style: none; }
-                #scripts li input { margin-top: 10px; }
+                #scripts li input { float: left; margin: 10px 8px 3px 8px; }
             </style>
             <div id="installer">
                 <div class="quickactions">
@@ -628,7 +627,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         h1, h2, p { margin: 8px 0; padding: 0; }
         h1 { text-align: center; }
         p.tiny {
-            color: #777;
+            color: #000;
             font: 9px;
             width: 540px;
             text-align: center;
