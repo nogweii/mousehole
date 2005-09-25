@@ -339,7 +339,10 @@ class MouseHole < WEBrick::HTTPProxyServer
             end
             script_count += 1
         end
-        content += %{<li><p>#{ script_count.zero? ? "No" : script_count } user scripts installed.</p></li>
+        content += %{<li>
+                <p>#{ script_count.zero? ? "No" : script_count } user scripts installed.  More
+                scripts can be found on the <a href="http://mousehole.rubyforge.org/wiki/wiki.pl?UserScripts">user scripts list</a>.</p>
+                </li>
                 </ul></div>
                 <div class="quickactions">
                 <p>MouseHole #{ VERSION } by <a href="http://whytheluckystiff.net/">why the lucky stiff</a><br />
