@@ -1,15 +1,9 @@
-require 'rake'
-require 'rake/clean'
+require 'rubygems'
 require 'rake/gempackagetask'
-require 'rake/contrib/rubyforgepublisher'
-require File.dirname(__FILE__) + '/lib/mouseHole'
+require 'rake/clean'
+require './lib/mouseHole'
 
 PKG_VERSION = MouseHole::VERSION
-PKG_NAME = "mouseHole"
-PKG_FILE_NAME = "#{PKG_NAME}-#{PKG_VERSION}"
-RUBY_FORGE_PROJECT = "mousehole"
-RUBY_FORGE_USER = "why"
-RELEASE_NAME = "#{PKG_NAME}-#{PKG_VERSION}"
 PKG_FILES = FileList[
     '[A-Z]*',
     'bin/**/*', 
@@ -17,14 +11,20 @@ PKG_FILES = FileList[
     'test/**/*.rb',
     'images/*'
 ]
+RUBY_FORGE_PROJECT = "mousehole"
+RUBY_FORGE_USER = "why"
+
 BINARY_PLATFORMS = ['win32']
+DIST_EXTENSIONS = ["gem", "tar.gz", "zip", "exe"]
 
 CLEAN.include "**/.*.sw*"
 
-spec = Gem::Specification.new do |s|
-    s.name = PKG_NAME
+specs = {}
+specs['src'] = Gem::Specification.new do |s|
+    s.platform = Gem::Platform::RUBY
+    s.name = 'mouseHole'
     s.version = PKG_VERSION
-    s.summary = "scriptable proxy, browser-neutral alternative to Greasemonkey."
+    s.summary = "mouseHole is a scriptable proxy, an alternative to Greasemonkey and personal web server."
     s.description = %{
         MouseHole is a personal web proxy written in Ruby (and currently based on WEBrick) 
         designed to be simple to script. Scripts can rewrite the web as you view it, altering 
@@ -35,8 +35,9 @@ spec = Gem::Specification.new do |s|
     s.files = PKG_FILES.to_a
     #
     s.require_path = 'lib'
+    s.autorequire = 'rake'
     #
-    s.bindir = 'bin'
+    s.bindir = "bin"
     s.executables = ["mouseHole"]
     s.default_executable = "mouseHole"
     #
@@ -48,58 +49,61 @@ spec = Gem::Specification.new do |s|
     s.rubyforge_project = "mousehole"
 end
 
-Rake::GemPackageTask.new(spec) do |pkg|
-    pkg.need_tar_gz = true
-    pkg.need_zip = true
-end
-
+# copy platform-specific files into place, prepare gemspecs
 BINARY_PLATFORMS.each do |platform|
-    bin_files = []
-    FileList["#{ platform }/**/*"].each do |pkg_file|
-        next if File.directory? pkg_file
-        target = pkg_file.gsub %r!^#{ platform }/!, ''
-        cp pkg_file, target
-        bin_files << target
+
+    specs[platform] = specs['src'].dup
+    specs[platform].platform = platform
+    specs[platform].extensions = []
+    specs[platform].files += FileList["#{platform}/**/*"].map do |pf| 
+        target = pf.gsub( /^#{ platform }\//, '' )
+        unless File.directory? pf
+            file target do
+                mkdir_p File.dirname( target )
+                cp pf, target
+            end
+            task :clobber_package do
+                rm_r target rescue nil
+            end
+        end
+        target
     end
 
-    bin_spec = spec.dup
-    bin_spec.platform = platform
-    bin_spec.files += bin_files
-    # bin_spec.extensions = []
+end
 
-    Rake::GemPackageTask.new(bin_spec) do |pkg|
+# create all distributions
+Rake::GemPackageTask.new specs['src'] do |pkg|
+    pkg.package_dir = 'pkg/src'
+    pkg.need_tar_gz = true
+    pkg.need_zip    = true
+end
+BINARY_PLATFORMS.each do |platform|
+    Rake::GemPackageTask.new specs[platform] do |pkg|
+        pkg.package_dir = "pkg/#{ platform }"
         pkg.need_zip = true
     end
-
-    p bin_files
-    # bin_files.each do |pkg_file|
-    #     rm pkg_file
-    # end
 end
-
-RUBYSCRIPT2EXE   = ENV['RUBYSCRIPT2EXE'] ||
-    File.join(Config::CONFIG['bindir'], 'rubyscript2exe.rb')
-RUBY_MAIN_SCRIPT = ENV['RUBYMAINSCRIPT'] || 'mouseHole.rb'
-EXEC_TARGET      = RUBY_MAIN_SCRIPT.sub(/rb$/, 'exe')
-
-file :executable => [ RUBY_MAIN_SCRIPT ] do | t |
-    unless File.exist?(RUBYSCRIPT2EXE)
-        raise RuntimeError.new("rubyscript2exe.rb not found " +
-            "pass with RUBYSCRIPT2EXE=/path/to/rubyscript2.rb")
+task :clobber_package do
+    rm_r 'pkg' rescue nil
+end
+task :package do
+    specs.keys.each do |platform|
+        Dir["pkg/#{platform}/*"].each do |pkgf|
+            next if File.directory? pkgf
+            mv pkgf, "pkg/" + File.basename( pkgf ).
+                gsub( /(-#{platform})?.(#{ DIST_EXTENSIONS.join '|' })/, "-#{platform}\.\\2" )
+        end
     end
-    sh %{ruby "#{RUBYSCRIPT2EXE}" #{RUBY_MAIN_SCRIPT}}
-    File.move(EXEC_TARGET, 'build')
-    puts "Created executable file build/#{EXEC_TARGET}.exe" 
 end
 
-desc "Publish the release files to RubyForge."
+desc "Tag the release in CVS."
 task :tag_cvs do
-    system("cvs tag RELEASE_#{PKG_VERSION.gsub(/\./,'_')} -m 'tag release #{PKG_VERSION}'")
+    system("cvs tag RELEASE_#{PKG_VERSION.gsub(/\./,'_')}")
 end
 
 desc "Publish the release files to RubyForge."
 task :rubyforge_upload => [:package] do
-    files = ["exe", "tar.gz", "zip"].map { |ext| "pkg/#{PKG_FILE_NAME}.#{ext}" }
+    files = Dir["pkg/*.{#{ DIST_EXTENSIONS.join ',' }}"]
 
     if RUBY_FORGE_PROJECT then
         require 'net/http'
@@ -143,6 +147,7 @@ task :rubyforge_upload => [:package] do
             basename  = File.basename(filename)
             file_ext  = File.extname(filename)
             file_data = File.open(filename, "rb") { |file| file.read }
+            platform  = $1 if filename =~ /-(\w+)\.#{ file_ext }$/
 
             puts "Releasing #{basename}..."
 
@@ -151,20 +156,26 @@ task :rubyforge_upload => [:package] do
                 type_map = {
                     ".zip"    => "3000",
                     ".tgz"    => "3110",
+                    ".bz2"    => "3110",
                     ".gz"     => "3110",
+                    ".exe"    => "1100",
+                    ".dmg"    => "1200",
                     ".gem"    => "1400"
                 }; type_map.default = "9999"
-                type = type_map[file_ext]
+                arch_map = {
+                    "win32"   => "1000"
+                }; arch_map.default = "8000"
+                arch = arch_map[platform]
                 boundary = "rubyqMY6QN9bp6e4kS21H4y0zxcvoor"
 
                 query_hash = if first_file then
                   {
                     "group_id" => group_id,
                     "package_id" => package_id,
-                    "release_name" => RELEASE_NAME,
+                    "release_name" => PKG_VERSION,
                     "release_date" => release_date,
                     "type_id" => type,
-                    "processor_id" => "8000", # Any
+                    "processor_id" => arch,
                     "release_notes" => "",
                     "release_changes" => "",
                     "preformatted" => "1",
@@ -177,7 +188,7 @@ task :rubyforge_upload => [:package] do
                     "package_id" => package_id,
                     "step2" => "1",
                     "type_id" => type,
-                    "processor_id" => "8000", # Any
+                    "processor_id" => arch,
                     "submit" => "Add This File"
                   }
                 end
