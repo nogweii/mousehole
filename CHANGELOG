@@ -1,0 +1,38 @@
+--- %YAML:1.0
+- version: 1.2
+  date: 2005-09-25
+  changes:
+    lib/mouseHole.rb:
+    - support for either Tidy or HTree as the cleaner.
+    - now including Builder, an XML construction kit from Jim Weirich.
+    - matching has been rethunk, matches occur in the order you specify, alternate include
+      and exclude as you wish, folks.
+    - reset to factory defaults button on each script's config page.  also, uninstall button.
+    - new register_uri command which allows a script to pass data to a foreign domain.
+    - support for Greasemonkey scripts which don't leverage the GM_API.  (Starmonkey
+      code by MenTaLguY.)
+    - support for `mh' and `mouse.hole' hosts.  also, mounts are available as `mount' or
+      also `mouse.mount'.
+    - gzipped content allowed (from Ryan Leavengood's Wonderland.)
+    - rss feed of installed user scripts.
+    - caching of non-altered pages allowed.
+    - minor fixes to support Ruby 1.8.3.
+
+    lib/dnshack.rb: allow invalid hostnames (cause of http://___._/) and ensure the HOSTS hash works
+      under any Ruby 1.8.x.
+
+    lib/redcloth.rb: RedCloth included now.
+
+    lib/json/objects.rb: empty hash and empty array fixes.
+
+- version: 1.1
+  date: 2005-09-02
+  changes:
+    lib/mouseHole.rb: added support for Greasemonkey-like URL matching and
+      an automated installation process.
+      
+- version: 1.0
+  date: 2005-08-29
+  changes:
+    lib/mouseHole.rb: initial mouseHole release, included HTree for cleaning HTML
+      and basically ran in the installation directory.

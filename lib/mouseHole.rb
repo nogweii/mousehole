@@ -345,6 +345,7 @@ class MouseHole < WEBrick::HTTPProxyServer
                 </li>
                 </ul></div>
                 <div class="quickactions">
+                <a class="syndicate" title="RSS 2.0" href="/mouseHole/rss"><span>RSS</span></a>
                 <p>MouseHole #{ VERSION } by <a href="http://whytheluckystiff.net/">why the lucky stiff</a><br />
                     Running on ruby #{ ::RUBY_VERSION } (#{ ::RUBY_RELEASE_DATE }) [#{ ::RUBY_PLATFORM }]</li>
                     Built for the <a href="http://hoodwink.d/">hoodwinkers</a>
@@ -636,6 +637,22 @@ class MouseHole < WEBrick::HTTPProxyServer
             text-align: center;
             margin: 0 auto;
         }
+        a.syndicate {
+            float: right;
+            border: #666 1px solid;
+            margin: 4px;
+            text-decoration:none;
+        }
+        a.syndicate span {
+            display: block;
+            border: #ddd 1px solid;
+            padding: 1px 3px;
+            font:bold 10px verdana,sans-serif;
+            color: #f1f1f7;
+            background: #5AD;
+            text-decoration:none;
+            margin:0;
+        }
         .matchset {
             float: left;
             width: 540px;
@@ -830,7 +847,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         def exclude_match r, i = nil; add_match r, false, i end
         def add_match r, m, i = nil
             r.strip! if r.respond_to? :strip!
-            if i; self.matches[i+1, 0] = [r, m]
+            if i; self.matches[i+1, 0] = [[r, m]]
             else; self.matches << [r, m] end
         end
         def remove_match i; self.matches.delete_at i end
