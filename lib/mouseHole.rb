@@ -3,6 +3,7 @@ $:.unshift "#{ File.dirname __FILE__ }/#{ Config::CONFIG['arch'] }"
 $:.unshift "#{ File.dirname __FILE__ }"
 
 # mouseHole user libs
+require 'mouseHole/constants'
 require 'builder'
 require 'ftools'
 require 'open-uri'
@@ -20,9 +21,8 @@ require 'yaml/dbm'
 require 'zlib'
 require 'dnshack'
 
-class MouseHole < WEBrick::HTTPProxyServer
-
-    VERSION = "1.2"
+module MouseHole
+class ProxyServer < WEBrick::HTTPProxyServer
 
     include REXML
 
@@ -1057,7 +1057,7 @@ class MouseHole < WEBrick::HTTPProxyServer
         raise WEBrick::HTTPStatus::NotFound, "Mounts turned off." unless @conf[:mounts_on]
      
         obj = nil
-        Log.debug( "MouseHole#process_request has  path_info #{request.path_info}" )
+        Log.debug( "MouseHole::ProxyServer#process_request has  path_info #{request.path_info}" )
         path_parts = request.path_info.split( '/' ).reject { |x| x.to_s.strip.size == 0 }
         mount = path_parts.shift.to_s.strip
         each_fresh_script do |path, script|
@@ -1128,4 +1128,5 @@ class MouseHole < WEBrick::HTTPProxyServer
             end
         end
     end
+end
 end

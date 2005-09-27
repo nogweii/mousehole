@@ -48,7 +48,7 @@ MOUSEPORT = ARGV[1] || 37004
     mh          #{ MOUSEHOST }:#{ MOUSEPORT }
 ] ]
 
-    server = MouseHole::new( options,
+    server = MouseHole::ProxyServer::new( options,
         :BindAddress => MOUSEHOST,
         :Port => MOUSEPORT
     )

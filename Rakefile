@@ -1,7 +1,7 @@
 require 'rubygems'
 require 'rake/gempackagetask'
 require 'rake/clean'
-require './lib/mouseHole'
+require './lib/mouseHole/constants'
 
 PKG_VERSION = MouseHole::VERSION
 PKG_FILES = FileList[
@@ -15,7 +15,7 @@ RUBY_FORGE_PROJECT = "mousehole"
 RUBY_FORGE_USER = "why"
 
 BINARY_PLATFORMS = ['win32']
-DIST_EXTENSIONS = ["gem", "tar.gz", "zip", "exe"]
+DIST_EXTENSIONS = ["gem", "tar.bz2", "zip", "exe"]
 
 CLEAN.include "**/.*.sw*"
 
@@ -74,7 +74,7 @@ end
 # create all distributions
 Rake::GemPackageTask.new specs['src'] do |pkg|
     pkg.package_dir = 'pkg/src'
-    pkg.need_tar_gz = true
+    pkg.need_tar_bz2 = true
     pkg.need_zip    = true
 end
 BINARY_PLATFORMS.each do |platform|
