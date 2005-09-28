@@ -19,8 +19,9 @@ DIST_EXTENSIONS = ["gem", "tar.bz2", "zip", "exe"]
 
 CLEAN.include "**/.*.sw*"
 
+
 specs = {}
-specs['src'] = Gem::Specification.new do |s|
+specs['standard'] = Gem::Specification.new do |s|
     s.platform = Gem::Platform::RUBY
     s.name = 'mouseHole'
     s.version = PKG_VERSION
@@ -37,9 +38,9 @@ specs['src'] = Gem::Specification.new do |s|
     s.require_path = 'lib'
     s.autorequire = 'rake'
     #
-    s.bindir = "bin"
-    s.executables = ["mouseHole"]
-    s.default_executable = "mouseHole"
+    # s.bindir = "bin"
+    # s.executables = ["mouseHole"]
+    # s.default_executable = "mouseHole"
     #
     s.has_rdoc = false
     #
@@ -52,7 +53,7 @@ end
 # copy platform-specific files into place, prepare gemspecs
 BINARY_PLATFORMS.each do |platform|
 
-    specs[platform] = specs['src'].dup
+    specs[platform] = specs['standard'].dup
     specs[platform].platform = platform
     specs[platform].extensions = []
     specs[platform].files += FileList["#{platform}/**/*"].map do |pf| 
@@ -69,11 +70,25 @@ BINARY_PLATFORMS.each do |platform|
         target
     end
 
+    # give bin files an .rb extension
+    specs[platform].files.map do |pf|
+        if pf =~ /^bin\//
+            pf_rb = pf + ".rb"
+            file pf_rb do
+                cp pf, pf_rb
+            end
+            task :clobber_package do
+                rm_r pf_rb rescue nil
+            end
+            pf_rb
+        end
+        pf
+    end
 end
 
 # create all distributions
-Rake::GemPackageTask.new specs['src'] do |pkg|
-    pkg.package_dir = 'pkg/src'
+Rake::GemPackageTask.new specs['standard'] do |pkg|
+    pkg.package_dir = 'pkg/standard'
     pkg.need_tar_bz2 = true
     pkg.need_zip    = true
 end
@@ -90,8 +105,11 @@ task :package do
     specs.keys.each do |platform|
         Dir["pkg/#{platform}/*"].each do |pkgf|
             next if File.directory? pkgf
-            mv pkgf, "pkg/" + File.basename( pkgf ).
-                gsub( /(-#{platform})?.(#{ DIST_EXTENSIONS.join '|' })/, "-#{platform}\.\\2" )
+            pkgnew = File.basename( pkgf )
+            unless platform == 'standard'
+                pkgnew.gsub!( /(-#{platform})?.(#{ DIST_EXTENSIONS.join '|' })/, "-#{platform}\.\\2" )
+            end
+            mv pkgf, "pkg/" + pkgnew
         end
     end
 end

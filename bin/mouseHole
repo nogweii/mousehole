@@ -48,17 +48,14 @@ MOUSEPORT = ARGV[1] || 37004
     mh          #{ MOUSEHOST }:#{ MOUSEPORT }
 ] ]
 
-    server = MouseHole::ProxyServer::new( options,
-        :BindAddress => MOUSEHOST,
-        :Port => MOUSEPORT
-    )
-    appdir = Dir.pwd
-    if defined? RUBYSCRIPT2EXE_APPEXE
-        # Object::constants.grep( /^RUBYSCRIPT/ ).each do |c|
-        #     puts "#{c}: #{ Object::const_get c }"
-        # end
-        appdir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
-    end
-    server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( appdir, 'images' ) )
-    trap( :INT ) { server.shutdown }
-    server.start
+server = MouseHole::ProxyServer::new( options,
+    :BindAddress => MOUSEHOST,
+    :Port => MOUSEPORT
+)
+appdir = Dir.pwd
+if defined? RUBYSCRIPT2EXE_APPEXE
+    appdir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
+end
+server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( appdir, 'images' ) )
+trap( :INT ) { server.shutdown }
+server.start
