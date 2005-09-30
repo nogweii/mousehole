@@ -41,7 +41,7 @@ The underlying ideas are always the same, though.
 == starting mouseHole ==
 
 To start using mouseHole, simply run the script. On Windows, click on
-mouseHole.exe.  On other operating systems, run `mouseHole' from inside the
+mouseHole.exe.  On other operating systems, run `ruby bin/mouseHole' from inside the
 unpacked mouseHole directory.  A text window should popup showing that
 mouseHole is started.
 

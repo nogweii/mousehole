@@ -15,7 +15,7 @@ RUBY_FORGE_PROJECT = "mousehole"
 RUBY_FORGE_USER = "why"
 
 BINARY_PLATFORMS = ['win32']
-DIST_EXTENSIONS = ["gem", "tar.bz2", "zip", "exe"]
+DIST_EXTENSIONS = ["tar.bz2", "zip", "exe"] # gem (still unsupported)
 
 CLEAN.include "**/.*.sw*"
 
@@ -180,6 +180,7 @@ task :rubyforge_upload => [:package] do
                     ".dmg"    => "1200",
                     ".gem"    => "1400"
                 }; type_map.default = "9999"
+                type_num = type_map[file_ext]
                 arch_map = {
                     "win32"   => "1000"
                 }; arch_map.default = "8000"
@@ -192,7 +193,7 @@ task :rubyforge_upload => [:package] do
                     "package_id" => package_id,
                     "release_name" => PKG_VERSION,
                     "release_date" => release_date,
-                    "type_id" => type,
+                    "type_id" => type_num,
                     "processor_id" => arch,
                     "release_notes" => "",
                     "release_changes" => "",
@@ -205,7 +206,7 @@ task :rubyforge_upload => [:package] do
                     "release_id" => release_id,
                     "package_id" => package_id,
                     "step2" => "1",
-                    "type_id" => type,
+                    "type_id" => type_num,
                     "processor_id" => arch,
                     "submit" => "Add This File"
                   }
