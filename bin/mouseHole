@@ -1,16 +1,35 @@
 #!/usr/bin/env ruby
 require 'optparse'
 require 'ostruct'
+require 'webrick/httpproxy'
 require './lib/mouseHole'
 
 options = OpenStruct.new
 options.tidy = true
 
+# locate ~/.mouseHole
+homes = []
+homes << [ENV['HOME'], File.join( ENV['HOME'], '.mouseHole' )] if ENV['HOME']
+homes << [ENV['APPDATA'], File.join( ENV['APPDATA'], 'MouseHole' )] if ENV['APPDATA']
+homes.each do |home_top, home_dir|
+    next unless home_top
+    if File.exists? home_top
+        File.makedirs( home_dir )
+        options.mouse_dir = home_dir
+        break
+    end
+end
+
 opts = OptionParser.new do |opts|
-    opts.banner = "Usage: mouseHole [options] [ip] [port]"
+    opts.banner = "Usage: mouseHole [options] [ip or hostname] [port]"
 
     opts.separator ""
     opts.separator "Specific options:"
+
+    opts.on("-d", "--directory DIRECTORY",
+            "MouseHole directory (defaults to #{options.mouse_dir || 'None'})") do |d|
+        options.mouse_dir = d
+    end
 
     opts.on("-t", "--[no-]tidy",    "Use Tidy?") do |t|
         options.tidy = t
@@ -38,19 +57,24 @@ opts = OptionParser.new do |opts|
 end
 
 opts.parse! ARGV
+options.host = ARGV[0] || "127.0.0.1"
+options.port = ARGV[1] || 37004
 
-MOUSEHOST = ARGV[0] || "127.0.0.1"
-MOUSEPORT = ARGV[1] || 37004
 ::HOSTS = Hash[ *%W[
     hoodwink.d  65.125.236.166
     ___._       65.125.236.166
-    mouse.hole  #{ MOUSEHOST }:#{ MOUSEPORT }
-    mh          #{ MOUSEHOST }:#{ MOUSEPORT }
+    mouse.hole  #{ options.host }:#{ options.port }
+    mh          #{ options.host }:#{ options.port }
 ] ]
 
-server = MouseHole::ProxyServer::new( options,
-    :BindAddress => MOUSEHOST,
-    :Port => MOUSEPORT
+proxy_uri = nil
+if env_http_proxy = ENV["HTTP_PROXY"]
+    proxy_uri = URI.parse(env_http_proxy)
+end
+server = MouseHole::ProxyServer( WEBrick::HTTPProxyServer )::new( options,
+    :BindAddress => options.host,
+    :Port => options.port,
+    :ProxyURI => proxy_uri
 )
 appdir = Dir.pwd
 if defined? RUBYSCRIPT2EXE_APPEXE
