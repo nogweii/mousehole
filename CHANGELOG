@@ -4,6 +4,7 @@
   changes:
     lib/mouseHole.rb: separated into classes under lib/mouseHole/*.rb.
     lib/mouseHole/proxyserver.rb:
+    - new streaming support!! (resources not handled by MouseHole are streamed to the browser.)
     - decode bug fix from Daniel Sheppard, what a guy. (he also contributed the converters stuff.)
     - use converters to parse data and farm out to scripts.
     lib/mouseHole/starmonkey.rb: now GM_xmlhttprequest works.

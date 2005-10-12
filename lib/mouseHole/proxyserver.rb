@@ -1,4 +1,4 @@
-require 'generator'
+require 'net/httpio'
 
 module MouseHole
 class CancelRewrite < StandardError; end
@@ -158,6 +158,7 @@ def self.ProxyServer( base_proxy )
             while str = res.body.read; body += str; end
             res.body.close
             res.body = body
+            p res.body
             res['content-length'] = res.body.length
 
             case res['content-encoding']
@@ -895,52 +896,35 @@ def self.ProxyServer( base_proxy )
 
             response = nil
             begin
-              http = Net::HTTP.new(uri.host, uri.port, proxy_host, proxy_port)
-              g = Generator.new do |g|
-                  http.start do
-                      if @config[:ProxyTimeout]
-                          ##################################   these issues are 
-                          http.open_timeout = 30   # secs  #   necessary (maybe bacause
-                          http.read_timeout = 60   # secs  #   Ruby's bug, but why?)
-                          ##################################
-                      end
-                      chunkd = proc do |gres|
-                          g.yield [gres, ""]
-                          gres.read_body do |gstr|
-                              g.yield [gres, gstr]
-                          end
-                      end
-                      case req.request_method
-                      when "GET"  then http.request_get(path, header, &chunkd)
-                      when "POST" then http.request_post(path, req.body || "", header, &chunkd)
-                      when "HEAD" then http.request_head(path, header, &chunkd)
-                      else
-                        raise WEBrick::HTTPStatus::MethodNotAllowed,
-                          "unsupported method `#{req.request_method}'."
-                      end
-                  end
+              http = Net::HTTPIO.new(uri.host, uri.port, proxy_host, proxy_port)
+              if @config[:ProxyTimeout]
+                  ##################################   these issues are 
+                  http.open_timeout = 30   # secs  #   necessary (maybe bacause
+                  http.read_timeout = 60   # secs  #   Ruby's bug, but why?)
+                  ##################################
               end
-              # Use the generator to mimick an IO object
-              def g.read sz = 0; next? ? self.next[1] : nil end
-              def g.size; 0 end
-              def g.close; while next?; self.next; end end
-              def g.is_a? klass; klass == IO ? true : super(klass); end
+              response =
+                  case req.request_method
+                  when "GET"  then http.request_get(path, header)
+                  when "POST" then http.request_post(path, req.body || "", header)
+                  when "HEAD" then http.request_head(path, header)
+                  else
+                    raise WEBrick::HTTPStatus::MethodNotAllowed,
+                      "unsupported method `#{req.request_method}'."
+                  end
             rescue => err
                 logger.debug("#{err.class}: #{err.message}")
                 raise WEBrick::HTTPStatus::ServiceUnavailable, err.message
             end
       
-            response, = g.next
-
             # Convert Net::HTTP::HTTPResponse to WEBrick::HTTPProxy
             res.status = response.code.to_i
             choose_header(response, res)
             set_cookie(response, res)
             set_via(res)
-            res.body = g
+            res.body = response
             def res.send_body(socket)
-              case @body
-              when IO, Generator then send_body_io(socket)
+              if @body.is_a?(IO) then send_body_io(socket)
               else send_body_string(socket)
               end
             end
