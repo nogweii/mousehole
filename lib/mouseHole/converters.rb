@@ -1,3 +1,5 @@
+# Module containing possible mime type convertors (in order to be rewriteable content, a
+# convertor class must identify itself as able to handle a mime type.)
 module MouseHole
 module Converters
 

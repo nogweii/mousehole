@@ -1,3 +1,5 @@
+require 'generator'
+
 module MouseHole
 class CancelRewrite < StandardError; end
 # ProxyServer stuff
@@ -149,8 +151,15 @@ def self.ProxyServer( base_proxy )
             res['pragma'] = 'no-cache'
         end
 
-        # MrCode's gzip decoding from WonderLand!
+        # MrCode's gzip decoding from WonderLand!  Also reads in remainder of the body from the
+        # stream.
         def decode(res)
+            body = ''
+            while str = res.body.read; body += str; end
+            res.body.close
+            res.body = body
+            res['content-length'] = res.body.length
+
             case res['content-encoding']
             when 'gzip':
                 gzr = Zlib::GzipReader.new(StringIO.new(res.body))
@@ -223,8 +232,8 @@ def self.ProxyServer( base_proxy )
                         res['content-type'] = 'text/html'
                         res['content-length'] = res.body.length
                     end
-                elsif @conf[:rewrites_on] and res.content_type
-                    converter = Converters.detect_by_mime_type res.content_type.split(';',2)[0]
+                elsif @conf[:rewrites_on] and res['content-type']
+                    converter = Converters.detect_by_mime_type res['content-type'].split(';',2)[0]
                     # p [res.content_type, converter]
                     if converter
                         check_cache res
@@ -856,6 +865,91 @@ def self.ProxyServer( base_proxy )
                     yield c
                 end
             end 
+        end
+
+        # Don't start reading the body, just pull headers!
+        def proxy_service(req, res)
+            # Proxy Authentication
+            proxy_auth(req, res)      
+
+            # Create Request-URI to send to the origin server
+            uri  = req.request_uri
+            path = uri.path.dup
+            path << "?" << uri.query if uri.query
+
+            # Choose header fields to transfer
+            header = Hash.new
+            choose_header(req, header)
+            set_via(header)
+
+            # select upstream proxy server
+            if proxy = proxy_uri(req, res)
+                proxy_host = proxy.host
+                proxy_port = proxy.port
+                if proxy.userinfo
+                    credentials = "Basic " + [proxy.userinfo].pack("m*")
+                    credentials.chomp!
+                    header['proxy-authorization'] = credentials
+                end
+            end
+
+            response = nil
+            begin
+              http = Net::HTTP.new(uri.host, uri.port, proxy_host, proxy_port)
+              g = Generator.new do |g|
+                  http.start do
+                      if @config[:ProxyTimeout]
+                          ##################################   these issues are 
+                          http.open_timeout = 30   # secs  #   necessary (maybe bacause
+                          http.read_timeout = 60   # secs  #   Ruby's bug, but why?)
+                          ##################################
+                      end
+                      chunkd = proc do |gres|
+                          g.yield [gres, ""]
+                          gres.read_body do |gstr|
+                              g.yield [gres, gstr]
+                          end
+                      end
+                      case req.request_method
+                      when "GET"  then http.request_get(path, header, &chunkd)
+                      when "POST" then http.request_post(path, req.body || "", header, &chunkd)
+                      when "HEAD" then http.request_head(path, header, &chunkd)
+                      else
+                        raise WEBrick::HTTPStatus::MethodNotAllowed,
+                          "unsupported method `#{req.request_method}'."
+                      end
+                  end
+              end
+              # Use the generator to mimick an IO object
+              def g.read sz = 0; next? ? self.next[1] : nil end
+              def g.size; 0 end
+              def g.close; while next?; self.next; end end
+              def g.is_a? klass; klass == IO ? true : super(klass); end
+            rescue => err
+                logger.debug("#{err.class}: #{err.message}")
+                raise WEBrick::HTTPStatus::ServiceUnavailable, err.message
+            end
+      
+            response, = g.next
+
+            # Convert Net::HTTP::HTTPResponse to WEBrick::HTTPProxy
+            res.status = response.code.to_i
+            choose_header(response, res)
+            set_cookie(response, res)
+            set_via(res)
+            res.body = g
+            def res.send_body(socket)
+              case @body
+              when IO, Generator then send_body_io(socket)
+              else send_body_string(socket)
+              end
+            end
+
+
+            # Process contents
+            if handler = @config[:ProxyContentHandler]
+                handler.call(req, res)
+            end
         end
     end
 end

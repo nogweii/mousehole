@@ -63,7 +63,4 @@ module MouseHole
             @@mouselog.send( meth , *args ) if @@conf[:logs_on]
         end
     end
-
-    # Module containing possible mime type convertors (in order to be rewriteable content, a
-    # convertor class must identify itself as able to handle a mime type.)
 end
