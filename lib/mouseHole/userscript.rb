@@ -25,7 +25,7 @@ class UserScript
     def register_uri(r = "", &blk)
         self.registered_uris << [r, blk]
     end
-    def unregister_uri(r = "", &blk)
+    def unregister_uri(r = "")
         self.registered_uris.delete_if { |uridef| uridef[0] == r }
     end
     def reg( r = "" ); "/#{ @token }/#{ r }" end
