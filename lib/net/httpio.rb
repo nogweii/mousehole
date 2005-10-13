@@ -10,8 +10,14 @@ class HTTPIO < HTTP
             req.proxy_basic_auth proxy_user(), proxy_pass()
         end
 
-        begin_transport req
-        req.exec @socket, @curr_http_version, edit_path(req.path), body
+        if req.respond_to? :set_body_internal
+            req.set_body_internal body
+            begin_transport req
+            req.exec @socket, @curr_http_version, edit_path(req.path)
+        else
+            begin_transport req
+            req.exec @socket, @curr_http_version, edit_path(req.path), body
+        end
         begin
             res = HTTPResponse.read_new(@socket)
         end while HTTPContinue === res
