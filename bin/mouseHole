@@ -6,6 +6,8 @@ require './lib/mouseHole'
 
 options = OpenStruct.new
 options.tidy = true
+options.server = "webrick"
+options.daemon = false
 
 # locate ~/.mouseHole
 homes = []
@@ -29,6 +31,15 @@ opts = OptionParser.new do |opts|
     opts.on("-d", "--directory DIRECTORY",
             "MouseHole directory (defaults to #{options.mouse_dir || 'None'})") do |d|
         options.mouse_dir = d
+    end
+
+    opts.on("-s", "--server SERVER_APP",
+            "Web server to launch: webrick or lighttpd (default is webrick)") do |s|
+        options.server = s
+    end
+
+    opts.on("-D", "--[no-]daemon",  "Daemon mode") do |d|
+        options.daemon = d
     end
 
     opts.on("-t", "--[no-]tidy",    "Use Tidy?") do |t|
@@ -71,15 +82,42 @@ proxy_uri = nil
 if env_http_proxy = ENV["HTTP_PROXY"]
     proxy_uri = URI.parse(env_http_proxy)
 end
-server = MouseHole::ProxyServer( WEBrick::HTTPProxyServer )::new( options,
-    :BindAddress => options.host,
-    :Port => options.port,
-    :ProxyURI => proxy_uri
-)
-appdir = Dir.pwd
+options.app_dir = Dir.pwd
 if defined? RUBYSCRIPT2EXE_APPEXE
-    appdir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
+    options.app_dir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
 end
-server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( appdir, 'images' ) )
-trap( :INT ) { server.shutdown }
-server.start
+options.lib_dir = File.join( options.app_dir, 'lib' )
+options.share_dir = File.join( options.app_dir, 'share' )
+options.temp_dir = File.join( options.mouse_dir, 'temp' )
+options.log_dir = File.join( options.mouse_dir, 'log' )
+File.makedirs( options.temp_dir )
+File.makedirs( options.log_dir )
+
+case options.server
+when "webrick"
+    server = MouseHole::ProxyServer( WEBrick::HTTPProxyServer )::new( options,
+        :BindAddress => options.host,
+        :Port => options.port,
+        :ProxyURI => proxy_uri,
+        :ServerType => options.daemon ? WEBrick::Daemon : WEBrick::SimpleServer
+    )
+    server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( options.app_dir, 'images' ) )
+    trap( :INT ) { server.shutdown }
+    server.start
+when "lighttpd"
+    require 'erb'
+    File.makedirs( File.join( options.temp_dir, 'lighttpd' ) )
+    lighttpd_conf = File.join( options.temp_dir, 'lighttpd', 'lighttpd.conf' )
+    File.open( lighttpd_conf, 'w' ) do |f|
+        f << ERB.new( File.read( options.share_dir + '/lighttpd/lighttpd.conf' ) ).result
+    end
+    dispatch_cgi = File.join( options.temp_dir, 'lighttpd', 'dispatch.fcgi' )
+    File.open( dispatch_cgi, 'w' ) do |f|
+        f << ERB.new( File.read( options.share_dir + '/lighttpd/dispatch.fcgi' ) ).result
+    end
+    File.chmod( 0755, dispatch_cgi )
+    lighttpd_path = `whereis lighttpd`.scan( %r!/\S+/lighttpd! ).first
+    `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
+else
+    abort "** Server `#{ options.server }' not supported."
+end

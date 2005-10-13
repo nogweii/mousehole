@@ -4,13 +4,13 @@ module MouseHole
 class UserScript
 
     attr_accessor :document, :matches, :db, :request, :response, :mtime, :active, 
-        :install_uri, :token, :mousehole_uri, :registered_uris
+        :install_uri, :token, :mousehole_uri, :registered_uris, :logger
 
     def initialize
         @token = WEBrick::Utils::random_string 32
         @matches, @registered_uris, @rewrites = [], [], {}
     end
-    def debug msg; Log.debug( msg ); end
+    def debug msg; @logger.debug( msg ); end
     def name s = nil; s ? @name = s : @name; end
     def namespace s = nil; s ? @namespace = s : @namespace; end
     def description s = nil; s ? @description = s : @description; end

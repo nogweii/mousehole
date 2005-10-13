@@ -1,3 +1,4 @@
+require 'net/http'
 module Net
 class HTTPIO < HTTP
     def request(req, body = nil, &block)  # :yield: +response+

@@ -43,24 +43,4 @@ module MouseHole
         uscript.instance_eval &blk
         uscript
     end
-
-    # Wrapper for a gloabal logger.  Found in James Britt's catapult.
-    # If MouseHole ends up being run as a Windows service or something similar, then
-    # it may make sense to replace file logging with something more approriate
-    # to the processing environment, such as an event log.  But you likely will not
-    # want scads of debug messages going there, so be sure the log level or
-    # whatever is set accordingly.
-    class Log
-        @@mouselog = Logger.new( File.join( "mouse.log"  ) )
-        @@mouselog.level = Logger::DEBUG
-        @@conf = {}
-
-        def self.conf=( conf )
-            @@conf = conf
-        end
-
-        def self.method_missing( meth , *args )
-            @@mouselog.send( meth , *args ) if @@conf[:logs_on]
-        end
-    end
 end

@@ -12,8 +12,7 @@ def self.ProxyServer( base_proxy )
             super(*args)
             config.merge!(
                 :RequestCallback => method( :prewink ),
-                :ProxyContentHandler => method( :upwink ),
-                :Logger => Log
+                :ProxyContentHandler => method( :upwink )
             )
 
             # various dispatch
@@ -37,14 +36,15 @@ def self.ProxyServer( base_proxy )
             # read user scripts on startup
             @mousehole_utils = make_utility_mixin options
             @etags, @temp_scripts, @user_scripts = {}, {}, {}
-            @user_data_dir, @user_script_dir = 
-                File.join( options.mouse_dir, 'data' ), File.join( options.mouse_dir, 'userScripts' )
+            @user_data_dir, @user_script_dir, @user_temp_dir = 
+                File.join( options.mouse_dir, 'data' ), 
+                File.join( options.mouse_dir, 'userScripts' ),
+                File.join( options.mouse_dir, 'temp' )
             File.makedirs( @user_script_dir )
             File.makedirs( @user_data_dir )
             @started = Time.now
             @db = YAML::DBM.open( File.join( @user_data_dir, 'mouseHole' ) )
             @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
-            Log.conf = @conf
             Dir["#{ @user_script_dir }/*.user.{rb,js}"].each do |userb|
                 userb = File.basename userb
                 load_user_script userb
@@ -85,7 +85,7 @@ def self.ProxyServer( base_proxy )
                     @user_scripts.delete(path)
                 else
                     if script.nil? or File.mtime(fullpath) > ( script.mtime rescue Time.at(0) )
-                        Log.debug( "Reloading #{ path }, as it has changed." )
+                        @logger.debug( "Reloading #{ path }, as it has changed." )
                         @user_scripts[path] = script = load_user_script( path )
                     end
                     active = script.active if script.respond_to?(:active)
@@ -109,6 +109,7 @@ def self.ProxyServer( base_proxy )
                     script = eval( File.read( fullpath ) )
                 end
                 script.mousehole_uri = home_uri
+                script.logger = @logger
                 script.db = YAML::DBM.open( File.join( @user_data_dir, userb ) )
                 script.mtime = File.mtime( fullpath )
                 script.active = true
@@ -158,7 +159,6 @@ def self.ProxyServer( base_proxy )
             while str = res.body.read; body += str; end
             res.body.close
             res.body = body
-            p res.body
             res['content-length'] = res.body.length
 
             case res['content-encoding']
@@ -219,11 +219,11 @@ def self.ProxyServer( base_proxy )
                         decode(res)
                         scrip = File.basename( req.request_uri.path )
                         evaluator = Evaluator.new( scrip, res.body.dup )
-                        t = Tempfile.new( scrip )
-                        t.write evaluator.code
-                        evaluator.script_id = t.path
-                        @temp_scripts[t.path] = [t, req.request_uri.to_s, scrip]
-                        t.close
+                        evaluator.script_id = File.join( @user_temp_dir, scrip )
+                        File.open( evaluator.script_id, 'w' ) do |t|
+                            t << evaluator.code
+                        end
+                        @temp_scripts[evaluator.script_id] = [req.request_uri.to_s, scrip]
                         Thread.start( evaluator ) do |e|
                             e.taint
                             $SAFE = 4
@@ -531,7 +531,7 @@ def self.ProxyServer( base_proxy )
         def server_install( args, req, res )
             userb = req.query[ 'script_id' ]
             if req.query[ 'do_it' ] and @temp_scripts[userb] and File.exists? userb
-                temp, install_uri, path = @temp_scripts[userb]
+                install_uri, path = @temp_scripts[userb]
 
                 scriptset = ( @db["script:#{ path }"] || {} )
                 scriptset[:install_uri] = install_uri
@@ -774,7 +774,7 @@ def self.ProxyServer( base_proxy )
             raise WEBrick::HTTPStatus::NotFound, "Mounts turned off." unless @conf[:mounts_on]
          
             obj = nil
-            Log.debug( "MouseHole::ProxyServer#process_request has  path_info #{request.path_info}" )
+            @logger.debug( "MouseHole::ProxyServer#process_request has  path_info #{request.path_info}" )
             path_parts = request.path_info.split( '/' ).reject { |x| x.to_s.strip.size == 0 }
             mount = path_parts.shift.to_s.strip
             each_fresh_script do |path, script|
@@ -788,6 +788,7 @@ def self.ProxyServer( base_proxy )
         end
 
         def make_utility_mixin( options )
+            logger = @logger
             @mousehole_utils = Module.new do
                 libtidy = nil
                 if options.tidy
@@ -800,7 +801,7 @@ def self.ProxyServer( base_proxy )
                         libtidies.unshift 'dylib' if Config::CONFIG['arch'] =~ /darwin/
                         libtidies.collect! { |lib| File.join( libdir, "libtidy.#{lib}") }
                         if libtidy = libtidies.find { |lib| File.exists? lib } 
-                            Log.debug "Found Tidy! #{ libtidy }"
+                            logger.debug "Found Tidy! #{ libtidy }"
                             require 'tidy'
                             require 'htree/htmlinfo'
                             Tidy.path = libtidy
@@ -826,7 +827,7 @@ def self.ProxyServer( base_proxy )
                 end
 
                 unless libtidy
-                    Log.debug "No Tidy found."
+                    logger.debug "No Tidy found."
                     require 'htree'
                     def xhtmlize html, full_doc = false, charset = nil
                        out = ""
@@ -913,7 +914,7 @@ def self.ProxyServer( base_proxy )
                       "unsupported method `#{req.request_method}'."
                   end
             rescue => err
-                logger.debug("#{err.class}: #{err.message}")
+                @logger.debug("#{err.class}: #{err.message}")
                 raise WEBrick::HTTPStatus::ServiceUnavailable, err.message
             end
       
