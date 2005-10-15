@@ -113,6 +113,7 @@ when "lighttpd"
     lighttpd_path = `which lighttpd 2>/dev/null; whereis lighttpd`.
         scan( %r!\s/\S+/lighttpd\s! ).detect { |ctl| ctl.strip!
             `#{ctl} -v` =~ %r!lighttpd-1\.! }
+    abort( "** No lighttpd found, make sure it's in your PATH?" ) unless lighttpd_path
     `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
 when "apache2"
     require 'erb'
