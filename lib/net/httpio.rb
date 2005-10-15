@@ -67,12 +67,14 @@ class HTTPIO < HTTP
                                 @socket.read clen, dest
                             else
                                 @socket.read_all dest
+                                @read = true
                             end
                         end
                     end
                     dest
                 else
-                    nil
+                    @read = true
+                    dest = ''
                 end
             rescue EOFError
                 @read = true

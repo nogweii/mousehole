@@ -928,8 +928,10 @@ def self.ProxyServer( base_proxy )
             set_via(res)
             res.body = response
             def res.send_body(socket)
-              if @body.is_a?(IO) then send_body_io(socket)
-              else send_body_string(socket)
+              if @body.respond_to?(:read) and @body.respond_to?(:size)
+                  send_body_io(socket)
+              else 
+                  send_body_string(socket)
               end
             end
 
