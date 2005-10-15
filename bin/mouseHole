@@ -110,7 +110,9 @@ when "lighttpd"
         f << ERB.new( File.read( options.share_dir + '/lighttpd/dispatch.fcgi' ) ).result
     end
     File.chmod( 0755, dispatch_cgi )
-    lighttpd_path = `whereis lighttpd`.scan( %r!/\S+/lighttpd! ).first
+    lighttpd_path = `which lighttpd 2>/dev/null; whereis lighttpd`.
+        scan( %r!\s/\S+/lighttpd\s! ).detect { |ctl| ctl.strip!
+            `#{ctl} -v` =~ %r!lighttpd-1\.! }
     `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
 when "apache2"
     require 'erb'
