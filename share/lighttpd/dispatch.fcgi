@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require 'ostruct'
-options = Marshal.load( <%= Marshal.dump( options ).dump %> )
+options = <%= options.auto_marshal %>
 
 $:.unshift options.lib_dir
 
@@ -11,13 +11,6 @@ require 'mouseHole/moonproxy'
 
 MOUSEHOST = options.host
 MOUSEPORT = options.port
-
-::HOSTS = Hash[ *%W[
-    hoodwink.d  65.125.236.166
-    ___._       65.125.236.166
-    mouse.hole  #{ options.host }:#{ options.port }
-    mh          #{ options.host }:#{ options.port }
-] ]
 
 FCGI.each_request do |req|
     begin

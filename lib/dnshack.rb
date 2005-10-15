@@ -5,11 +5,11 @@ module Net
 class InternetMessageIO
     alias_method :_init, :initialize
     def initialize( *args )
-        if defined? ::HOSTS and ::HOSTS.has_key? args.first
-            if ::HOSTS[args[0]] =~ /:/
-                args[0], args[1] = ::HOSTS[args[0]].split(/:/)
+        if defined? MouseHole::HOSTS and MouseHole::HOSTS.has_key? args.first
+            if MouseHole::HOSTS[args[0]] =~ /:/
+                args[0], args[1] = MouseHole::HOSTS[args[0]].split(/:/)
             else
-                args[0] = ::HOSTS[args[0]]
+                args[0] = MouseHole::HOSTS[args[0]]
             end
         end
         _init( *args )
@@ -20,11 +20,11 @@ end
 class << TCPSocket
     alias_method :_open, :open
     def open( *args )
-        if defined? ::HOSTS and ::HOSTS.has_key? args.first
-            if ::HOSTS[args[0]] =~ /:/
-                args[0], args[1] = ::HOSTS[args[0]].split(/:/)
+        if defined? MouseHole::HOSTS and MouseHole::HOSTS.has_key? args.first
+            if MouseHole::HOSTS[args[0]] =~ /:/
+                args[0], args[1] = MouseHole::HOSTS[args[0]].split(/:/)
             else
-                args[0] = ::HOSTS[args[0]]
+                args[0] = MouseHole::HOSTS[args[0]]
             end
         end
         _open( *args )

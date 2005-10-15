@@ -33,6 +33,10 @@ def self.ProxyServer( base_proxy )
             end
             mount( "/favicon.ico", nil )
 
+            # add MouseHole hosts entries
+            HOSTS['mouse.hole'] = "#{ options.host }:#{ options.port }"
+            HOSTS['mh']         = "#{ options.host }:#{ options.port }"
+
             # read user scripts on startup
             @mousehole_utils = make_utility_mixin options
             @etags, @temp_scripts, @user_scripts = {}, {}, {}
@@ -118,8 +122,8 @@ def self.ProxyServer( base_proxy )
                 end
                 script.extend @mousehole_utils
                 if script.mount
-                    ::HOSTS[script.mount.to_s] = "#{ config[:ServerName] }:#{ config[:Port] }"
-                    ::HOSTS["mouse.#{ script.mount }"] = "#{ config[:ServerName] }:#{ config[:Port] }"
+                    MouseHole::HOSTS[script.mount.to_s] = "#{ config[:ServerName] }:#{ config[:Port] }"
+                    MouseHole::HOSTS["mouse.#{ script.mount }"] = "#{ config[:ServerName] }:#{ config[:Port] }"
                 end
             rescue Exception => e
                 script = e
@@ -201,8 +205,8 @@ def self.ProxyServer( base_proxy )
         # Is this request referencing a URL handled by MouseHole?
         def is_mousehole? req
             return false unless req.respond_to?( :host )
-            if ::HOSTS.has_key?( req.host )
-                host, port = ::HOSTS[ req.host ].split ':'
+            if MouseHole::HOSTS.has_key?( req.host )
+                host, port = MouseHole::HOSTS[ req.host ].split ':'
             end
             host ||= req.host
             port ||= req.port
@@ -235,7 +239,6 @@ def self.ProxyServer( base_proxy )
                     end
                 elsif @conf[:rewrites_on] and res['content-type']
                     converter = Converters.detect_by_mime_type res['content-type'].split(';',2)[0]
-                    # p [res.content_type, converter]
                     if converter
                         check_cache res
                         if res.status == 200

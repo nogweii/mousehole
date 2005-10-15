@@ -34,7 +34,7 @@ opts = OptionParser.new do |opts|
     end
 
     opts.on("-s", "--server SERVER_APP",
-            "Web server to launch: webrick or lighttpd (default is webrick)") do |s|
+            "Web server to launch: webrick, lighttpd or apache2 (default is webrick)") do |s|
         options.server = s
     end
 
@@ -71,13 +71,6 @@ opts.parse! ARGV
 options.host = ARGV[0] || "127.0.0.1"
 options.port = ARGV[1] || 37004
 
-::HOSTS = Hash[ *%W[
-    hoodwink.d  65.125.236.166
-    ___._       65.125.236.166
-    mouse.hole  #{ options.host }:#{ options.port }
-    mh          #{ options.host }:#{ options.port }
-] ]
-
 proxy_uri = nil
 if env_http_proxy = ENV["HTTP_PROXY"]
     proxy_uri = URI.parse(env_http_proxy)
@@ -90,6 +83,7 @@ options.lib_dir = File.join( options.app_dir, 'lib' )
 options.share_dir = File.join( options.app_dir, 'share' )
 options.temp_dir = File.join( options.mouse_dir, 'temp' )
 options.log_dir = File.join( options.mouse_dir, 'log' )
+options.auto_marshal = %{Marshal.load( #{ Marshal.dump( options ).dump } )}
 File.makedirs( options.temp_dir )
 File.makedirs( options.log_dir )
 
@@ -118,6 +112,47 @@ when "lighttpd"
     File.chmod( 0755, dispatch_cgi )
     lighttpd_path = `whereis lighttpd`.scan( %r!/\S+/lighttpd! ).first
     `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
+when "apache2"
+    require 'erb'
+    a2_dir = File.join( options.share_dir, 'apache2' )
+    a2_temp = File.join( options.temp_dir, 'apache2' )
+    a2_path = 
+        `which apache2ctl 2>/dev/null; whereis apache2ctl; 
+         which apachectl 2>/dev/null; whereis apachectl`.
+            scan( %r!\s/\S+/apache2?ctl\s! ).detect { |ctl| ctl.strip!
+                `#{ctl} -v` =~ %r!Apache/2\.! }
+    a2 = `#{ a2_path } -V`.scan( /-D\s*(\w+)\s*=\s*"(.+)"/ ).
+            inject({}) { |hsh,(k,v)| hsh[k] = v; hsh }
+    a2_conf = File.expand_path( a2['SERVER_CONFIG_FILE'], a2['HTTPD_ROOT'] )
+    File.foreach( a2_conf ) do |line|
+        case line
+        when /^\s*ServerRoot\s+("(.+?)"|(\S+))/
+            options.server_root = ($2 || $1).strip
+        when /^\s*LoadModule\s+(\w+)\s+(\S+)/
+            mod_name, mod_path = $1, $2
+            options.modules ||= Hash.new do |hsh,k|
+                `find #{ options.server_root } -name "mod_#{ k }.*"`.
+                    gsub( /^#{ options.server_root }\/?/, '' )
+            end
+            options.modules[mod_name.gsub( /_module$/, '' )] = mod_path
+        end
+    end
+
+    files = {}
+    Dir["#{a2_dir}/**/*"].each do |from_file|
+        next if File.directory? from_file
+        to_file = from_file.gsub( a2_dir, a2_temp ).
+                            gsub( /\/dot\./, '/.' )
+        unless File.exists? File.dirname( to_file )
+            File.makedirs( File.dirname( to_file ) )
+        end
+        File.open( to_file, 'w' ) do |f|
+            f << ERB.new( File.read( from_file ) ).result
+        end
+        files[to_file.gsub("#{a2_temp}/", '')] = to_file
+    end
+    File.chmod( 0755, files['htdocs/index.rbx'] )
+    `#{ a2_path } -f #{ files['httpd.conf'] }`
 else
     abort "** Server `#{ options.server }' not supported."
 end

@@ -14,7 +14,7 @@ class HTML < Base
         elsif res.body =~ %r!<meta[^>]+charset\s*=\s*([\w\-]+)!
             charset = $1
         end
-        script.read_xhtml( res.body, true, charset ) rescue nil
+        script.read_xhtml( res.body, true, charset )
     end
     def self.output(document, res)
         fix_doc(document) if REXML::Element == document
