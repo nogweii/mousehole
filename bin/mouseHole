@@ -111,7 +111,7 @@ when "lighttpd"
     end
     File.chmod( 0755, dispatch_cgi )
     lighttpd_path = `which lighttpd 2>/dev/null; whereis lighttpd`.
-        scan( %r!\s/\S+/lighttpd\s! ).detect { |ctl| ctl.strip!
+        scan( %r!(?:^|\s)/\S+/lighttpd(?:$|\s)! ).detect { |ctl| ctl.strip!
             `#{ctl} -v` =~ %r!lighttpd-1\.! }
     abort( "** No lighttpd found, make sure it's in your PATH?" ) unless lighttpd_path
     `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
@@ -124,6 +124,7 @@ when "apache2"
          which apachectl 2>/dev/null; whereis apachectl`.
             scan( %r!\s/\S+/apache2?ctl\s! ).detect { |ctl| ctl.strip!
                 `#{ctl} -v` =~ %r!Apache/2\.! }
+    abort( "** No apachectl or apache2ctl found, make sure it's in your PATH?" ) unless a2_path
     a2 = `#{ a2_path } -V`.scan( /-D\s*(\w+)\s*=\s*"(.+)"/ ).
             inject({}) { |hsh,(k,v)| hsh[k] = v; hsh }
     a2_conf = File.expand_path( a2['SERVER_CONFIG_FILE'], a2['HTTPD_ROOT'] )
