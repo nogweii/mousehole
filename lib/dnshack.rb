@@ -1,6 +1,7 @@
 #
 # DNS hack to override based on HOSTS constant
 #
+require 'net/protocol'
 module Net
 class InternetMessageIO
     alias_method :_init, :initialize
