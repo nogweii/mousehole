@@ -19,7 +19,7 @@ require 'timeout'
 require 'yaml/dbm'
 require 'webrick/utils'
 require 'zlib'
-require 'dnshack'
+require 'urihack'
 
 # mouseHole internals
 require 'mouseHole/evaluator'

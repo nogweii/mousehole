@@ -898,6 +898,13 @@ def self.ProxyServer( base_proxy )
                 end
             end
 
+            # Check our internal HOSTS registry
+            if defined? MouseHole::HOSTS and MouseHole::HOSTS.has_key? req.request_uri.host
+                ip, port = MouseHole::HOSTS[req.request_uri.host].split(/:/)
+                req.request_uri.host = ip
+                req.request_uri.port = port.to_i if port
+            end
+
             response = nil
             begin
               http = Net::HTTPIO.new(uri.host, uri.port, proxy_host, proxy_port)
