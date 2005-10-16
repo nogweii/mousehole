@@ -86,6 +86,32 @@ Network preference pane (in System Preferences), select Web Proxy, enter
 127.0.0.1 as address and 37004 as port.
 
 
+=== speeding up with lighttpd or apache2 ===
+
+If you want to go robust, you can run MouseHole through LightTPD/FastCGI (a
+free web server) or Apache2/mod_ruby (also free).  The LightTPD seems to work
+better for most people, so (if you're on Linux or OSX) give it a try.
+
+You'll need LightTPD, FastCGI, and FCGI-Ruby installed.  Once all are installed,
+fire it all up with:
+
+  mouseHole -s lighttpd
+
+You can pass in all the typical commandline options as well, if you like.
+
+  mouseHole -s lighttpd --no-tidy 127.0.0.1 3704
+
+Logs for script errors are stored in ~/.mouseHole/log.
+
+If you'd like to run Apache2, be sure you have Apache2 and mod_ruby installed.
+Then, get it started with:
+
+  mouseHole -s apache2
+
+To stop Apache:
+
+  apachectl -f ~/.mouseHole/temp/apache/httpd.conf -k stop
+
 === occasional mouseHole ===
 
 Firefox has a few useful extensions for managing proxies.
