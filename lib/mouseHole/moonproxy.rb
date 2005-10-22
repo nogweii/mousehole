@@ -43,6 +43,11 @@ class MoonProxy < WEBrick::HTTPProxyServer
   end
 
   def start(env=ENV, stdin=$stdin, stdout=$stdout)
+    # in a multithread environment, we need to reload the configuration at
+    # the start of each thread
+    load_conf
+    
+    # hook the proxy onto the cgi pipes
     sock = MouseHole::MoonProxy::Socket.new(@config, env, stdin, stdout)
     req = WEBrick::HTTPRequest.new(@config)
     res = WEBrick::HTTPResponse.new(@config)

@@ -28,6 +28,7 @@ require 'mouseHole/feedconverter'
 require 'mouseHole/userscript'
 require 'mouseHole/starmonkey'
 require 'mouseHole/proxyserver'
+require 'mouseHole/databases'
 
 module MouseHole
 

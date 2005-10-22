@@ -7,7 +7,7 @@ require './lib/mouseHole'
 options = OpenStruct.new
 options.tidy = true
 options.server = "webrick"
-options.db_driver = "yaml/dbm"
+options.db_driver = "yaml"
 options.daemon = false
 
 # locate ~/.mouseHole

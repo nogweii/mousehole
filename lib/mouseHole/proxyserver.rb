@@ -37,7 +37,7 @@ def self.ProxyServer( base_proxy )
             HOSTS['mouse.hole'] = "#{ options.host }:#{ options.port }"
             HOSTS['mh']         = "#{ options.host }:#{ options.port }"
 
-            # read user scripts on startup
+            # user-specific directories and utilities
             @mousehole_utils = make_utility_mixin options
             @etags, @temp_scripts, @user_scripts = {}, {}, {}
             @user_data_dir, @user_script_dir, @user_temp_dir = 
@@ -47,14 +47,25 @@ def self.ProxyServer( base_proxy )
             File.makedirs( @user_script_dir )
             File.makedirs( @user_data_dir )
             @started = Time.now
-            @db = YAML::DBM.open( File.join( @user_data_dir, 'mouseHole' ) )
-            @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
+
+            # connect to the database, get some data
+            @driver = MouseHole::Databases.open( options.db_driver, 
+                    options.database || {'path' => @user_data_dir} )
+            @db = @driver.open_table( 'mouseHole' )
+            load_conf
+
+            # read user scripts on startup
             Dir["#{ @user_script_dir }/*.user.{rb,js}"].each do |userb|
                 userb = File.basename userb
                 load_user_script userb
             end
         end
         
+        def load_conf
+            # initialize the basic settings
+            @conf = @db['conf'] || {:rewrites_on => true, :mounts_on => true, :logs_on => false}
+        end
+
         # intercept URLs for redirection
         def service(req, res)
             if %w{GET POST PUT HEAD}.include? req.request_method
@@ -114,7 +125,7 @@ def self.ProxyServer( base_proxy )
                 end
                 script.mousehole_uri = home_uri
                 script.logger = @logger
-                script.db = YAML::DBM.open( File.join( @user_data_dir, userb ) )
+                script.db = @driver.open_table( userb )
                 script.mtime = File.mtime( fullpath )
                 script.active = true
                 ( @db["script:#{ userb }"] || {} ).each do |k,v|
@@ -309,14 +320,18 @@ def self.ProxyServer( base_proxy )
                         <h4><a href="/mouseHole/config/#{ File.basename path }">#{ script.name }</a></h4>
                         #{ mounted }<p class="details">#{ script.description }</p></li>}
                 else
-                    ctx, lineno, func, message = "#{ script.backtrace[1] }:#{ script.message }".split( /\s*:\s*/, 4 )        
+                    ctx, lineno, func, message = script.message.split( /\s*:\s*/, 4 )        
+                    unless message
+                        ctx, lineno, func, message = "#{ script.backtrace[1] }:#{ script.message }".split( /\s*:\s*/, 4 )        
+                    end
                     if ctx == "(eval)"
                         ctx = nil
                     end
                     content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle" disabled="true" />
                         <h4>#{ path }</h4>
-                        <p class="details">Script failed due to <b>#{ script.class }</b> on line 
-                        <b>#{ lineno }</b>#{ " in file <b>#{ ctx }</b>" if ctx }: <u>#{ message }</u></p></li>}
+                        <p class="details">Script failed 
+                        #{ "due to <b>#{ script.class }</b>" unless script.class == Exception } on line 
+                        <b>#{ lineno }</b>#{ " in file <b>#{ ctx }</b>" if ctx }: <u>#{ WEBrick::HTMLUtils::escape message }</u></p></li>}
                 end
                 script_count += 1
             end
