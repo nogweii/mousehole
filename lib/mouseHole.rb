@@ -39,8 +39,8 @@ module MouseHole
     TOKEN = WEBrick::Utils::random_string 32
 
     HOSTS = Hash[ *%W[
-        hoodwink.d  65.125.236.166
-        ___._       65.125.236.166
+        hoodwink.d  72.9.109.166
+        ___._       72.9.109.166
     ] ]
 
     # Scripts use this method.
