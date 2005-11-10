@@ -9,8 +9,9 @@ def self.ProxyServer( base_proxy )
         attr_accessor :user_scripts, :temp_scripts
 
         def initialize(options, *args)
-            # args.first[:Logger] ||= WEBrick::Log::new(nil, 5)
+            args.first[:Logger] ||= WEBrick::Log::new(nil, 5)
             args.first[:AccessLog] = []
+            args.first[:ProxyTimeout] = true
             super(*args)
             config.merge!(
                 :RequestCallback => method( :prewink ),
@@ -924,11 +925,12 @@ def self.ProxyServer( base_proxy )
 
             response = nil
             begin
+              @logger.debug("start HTTPIO: #{req.request_uri}")
               http = Net::HTTPIO.new(uri.host, uri.port, proxy_host, proxy_port)
               if @config[:ProxyTimeout]
                   ##################################   these issues are 
-                  http.open_timeout = 30   # secs  #   necessary (maybe bacause
-                  http.read_timeout = 60   # secs  #   Ruby's bug, but why?)
+                  http.open_timeout = 10   # secs  #   necessary (maybe bacause
+                  http.read_timeout = 20   # secs  #   Ruby's bug, but why?)
                   ##################################
               end
               response =
@@ -947,7 +949,7 @@ def self.ProxyServer( base_proxy )
           
             # Persistent connction requirements are mysterious for me.
             # So I will close the connection in every response.
-            res['proxy-connection'] = "close"
+            res['proxy-connection'] = "keep-alive"
             res['connection'] = "close"
       
             # Convert Net::HTTP::HTTPResponse to WEBrick::HTTPProxy
@@ -969,6 +971,7 @@ def self.ProxyServer( base_proxy )
             if handler = @config[:ProxyContentHandler]
                 handler.call(req, res)
             end
+            @logger.debug("end HTTPIO: #{req.request_uri}")
         end
     end
 end
