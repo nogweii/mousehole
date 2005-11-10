@@ -9,6 +9,8 @@ def self.ProxyServer( base_proxy )
         attr_accessor :user_scripts, :temp_scripts
 
         def initialize(options, *args)
+            # args.first[:Logger] ||= WEBrick::Log::new(nil, 5)
+            args.first[:AccessLog] = []
             super(*args)
             config.merge!(
                 :RequestCallback => method( :prewink ),
@@ -942,6 +944,11 @@ def self.ProxyServer( base_proxy )
                 @logger.debug("#{err.class}: #{err.message}")
                 raise WEBrick::HTTPStatus::ServiceUnavailable, err.message
             end
+          
+            # Persistent connction requirements are mysterious for me.
+            # So I will close the connection in every response.
+            res['proxy-connection'] = "close"
+            res['connection'] = "close"
       
             # Convert Net::HTTP::HTTPResponse to WEBrick::HTTPProxy
             res.status = response.code.to_i

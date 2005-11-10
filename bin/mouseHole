@@ -93,8 +93,13 @@ File.makedirs( options.temp_dir )
 File.makedirs( options.log_dir )
 
 case options.server
-when "webrick"
-    server = MouseHole::ProxyServer( WEBrick::HTTPProxyServer )::new( options,
+when "gserver", "webrick"
+    prox = WEBrick::HTTPProxyServer
+    if options.server == "gserver"
+        require 'mouseHole/httpserver'
+        prox = MouseHole::HttpServer
+    end
+    server = MouseHole::ProxyServer( prox )::new( options,
         :BindAddress => options.host,
         :Port => options.port,
         :ProxyURI => proxy_uri,
