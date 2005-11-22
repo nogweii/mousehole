@@ -42,7 +42,13 @@ module Builder
 	case arg
 	when Hash
 	  attrs ||= {}
-	  attrs.merge!(arg)
+      arg.each { |k,v|
+          if v
+              attrs[k] = _escape(v)
+          else
+              attrs[k] = v
+          end
+      }
 	else
 	  text ||= ''
 	  text << arg.to_s
@@ -112,10 +118,17 @@ module Builder
     private
     
     def _escape(text)
-      text.
-	gsub(%r{&}, '&amp;').
-	gsub(%r{<}, '&lt;').
-	gsub(%r{>}, '&gt;')
+        text.gsub(/[^-\w\d\/\n\r _:;+=.\@*,()#]/) do |x|
+            case x
+                when '"' : '&quot;'
+                when '\'' : '&apos;'
+                when '<' : '&lt;'
+                when '>' : '&gt;'
+                when '&' : '&amp;'
+                else
+                    "&##{x[0]};"
+            end
+        end
     end
 
     def _capture_outer_self(block)
