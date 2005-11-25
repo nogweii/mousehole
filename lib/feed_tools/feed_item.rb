@@ -127,12 +127,12 @@ module FeedTools
       super
       @feed = nil
       @feed_data = nil
-      @feed_data_type = nil
+      @feed_data_type = :xml
       @xml_doc = nil
       @root_node = nil
       @title = nil
       @id = nil
-      @time = nil
+      @time = Time.now.gmtime
     end
 
     # Returns the parent feed of this feed item
@@ -152,7 +152,35 @@ module FeedTools
 
     # Sets the feed item's data.
     def feed_data=(new_feed_data)
+      @time = nil
       @feed_data = new_feed_data
+      
+      # We need an immediate parse of the time so we don't mess up sort orders
+      unless root_node.nil?
+        repair_entities = false
+        time_node = XPath.first(root_node, "pubDate")
+        if time_node.nil?
+          time_node = XPath.first(root_node, "dc:date")
+        end
+        if time_node.nil?
+          time_node = XPath.first(root_node, "dc:date", FEED_TOOLS_NAMESPACES)
+        end
+        if time_node.nil?
+          time_node = XPath.first(root_node, "issued")
+        end
+        if time_node.nil?
+          time_node = XPath.first(root_node, "updated")
+        end
+        if time_node.nil?
+          time_node = XPath.first(root_node, "time")
+        end
+      end
+      unless time_node.nil?
+        begin
+          @time = Time.parse(time_node.inner_xml)
+        rescue
+        end
+      end
     end
 
     # Returns the feed item's data type.
@@ -193,6 +221,9 @@ module FeedTools
     # Returns the root node of the feed item.
     def root_node
       if @root_node.nil?
+        if xml.nil?
+          return nil
+        end
         @root_node = xml.root
       end
       return @root_node
@@ -369,7 +400,7 @@ module FeedTools
         unless @description.nil?
           @description = FeedTools.sanitize_html(@description, :strip)
           @description = FeedTools.unescape_entities(@description) if repair_entities
-          @description = FeedTools.tidy_html(@description) unless repair_entities
+          @description = FeedTools.tidy_html(@description)
         end
 
         @description = @description.strip unless @description.nil?
@@ -1266,10 +1297,24 @@ module FeedTools
             time_string = XPath.first(root_node, "time/text()").to_s
           end
         end
-        if time_string != nil && time_string != ""
-          @time = Time.parse(time_string) rescue Time.now
-        elsif time_string == nil
-          @time = Time.now
+        begin
+          time_string = "" if time_string.nil?
+          if time_string != ""
+            @time = Time.parse(time_string)
+          else
+            @time = succ_time
+            if @time.nil?
+              @time = prev_time
+            end
+          end
+        rescue
+          @time = succ_time
+          if @time.nil?
+            @time = prev_time
+          end
+        end
+        if @time.nil?
+          @time = Time.now.gmtime
         end
       end
       return @time
@@ -1279,6 +1324,56 @@ module FeedTools
     def time=(new_time)
       @time = new_time
     end
+    
+    # Returns 1 second after the previous item's time.
+    def succ_time #:nodoc:
+      begin
+        if feed.nil?
+          return nil
+        end
+        if feed.instance_variable_get("@items").nil?
+          feed.items
+        end
+        unsorted_items = feed.instance_variable_get("@items")
+        item_index = unsorted_items.index(self)
+        if item_index.nil?
+          return nil
+        end
+        if item_index <= 0
+          return nil
+        end
+        previous_item = unsorted_items[item_index - 1]
+        return (previous_item.time + 1)
+      rescue
+        return nil
+      end
+    end
+    #private :succ_time
+
+    # Returns 1 second before the succeeding item's time.
+    def prev_time #:nodoc:
+      begin
+        if feed.nil?
+          return nil
+        end
+        if feed.instance_variable_get("@items").nil?
+          feed.items
+        end
+        unsorted_items = feed.instance_variable_get("@items")
+        item_index = unsorted_items.index(self)
+        if item_index.nil?
+          return nil
+        end
+        if item_index >= (unsorted_items.size - 1)
+          return nil
+        end
+        succeeding_item = unsorted_items[item_index + 1]
+        return (succeeding_item.time - 1)
+      rescue
+        return nil
+      end
+    end
+    #private :prev_time
 
     # Returns the feed item updated time
     def updated
@@ -1365,10 +1460,17 @@ module FeedTools
       # =======================================
       if @tags.nil?
         @tags = []
+        if root_node.nil?
+          return @tags
+        end
         if @tags.nil? || @tags.size == 0
           @tags = []
           tag_list = XPath.match(root_node, "dc:subject/rdf:Bag/rdf:li/text()")
-          if tag_list.size > 1
+          if tag_list.nil? || tag_list.size == 0
+            tag_list = XPath.match(root_node,
+              "dc:subject/rdf:Bag/rdf:li/text()", FEED_TOOLS_NAMESPACES)
+          end
+          if tag_list != nil && tag_list.size > 1
             for tag in tag_list
               @tags << tag.to_s.downcase.strip
             end
@@ -1462,7 +1564,7 @@ module FeedTools
       if feed_type == "rss" && (version == nil || version == 0.0)
         version = 1.0
       elsif feed_type == "atom" && (version == nil || version == 0.0)
-        version = 0.3
+        version = 1.0
       end
       if feed_type == "rss" && (version == 0.9 || version == 1.0 || version == 1.1)
         # RDF-based rss format
@@ -1609,7 +1711,7 @@ module FeedTools
             # than the Time.now fall-back.
             xml_builder.updated(self.time.iso8601)
           else
-            xml_builder.updated(Time.now.iso8601)
+            xml_builder.updated(Time.now.gmtime.iso8601)
           end
           unless self.published.nil?
             xml_builder.published(self.published.iso8601)            

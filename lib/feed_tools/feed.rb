@@ -102,7 +102,7 @@ module FeedTools
       @http_headers = nil
       @xml_doc = nil
       @feed_data = nil
-      @feed_data_type = nil
+      @feed_data_type = :xml
       @root_node = nil
       @channel_node = nil
       @url = nil
@@ -110,6 +110,7 @@ module FeedTools
       @title = nil
       @description = nil
       @link = nil
+      @last_retrieved = nil
       @time_to_live = nil
       @items = nil
       @live = false
@@ -134,7 +135,7 @@ module FeedTools
       validate_options([ :cache_only ],
                        options.keys)
       options = { :cache_only => false }.merge(options)
-          
+      
       if options[:cache_only] && FeedTools.feed_cache.nil?
         raise(ArgumentError, "There is currently no caching mechanism set. " +
           "Cannot retrieve cached feeds.")
@@ -185,7 +186,12 @@ module FeedTools
       end
     
       # Find out what method we're going to be using to obtain this feed.
-      uri = URI.parse(self.url)
+      begin
+        uri = URI.parse(self.url)
+      rescue URI::InvalidURIError
+        raise FeedAccessError,
+          "Cannot retrieve feed using invalid URL: " + self.url.to_s
+      end
       retrieval_method = "http"
       case uri.scheme
       when "http"
@@ -227,97 +233,92 @@ module FeedTools
             # Uh, maybe try to fix it?
             feed_uri = URI.parse(FeedTools.normalize_url(feed_url))
           end
+          
+          begin
+            Net::HTTP.start(feed_uri.host, (feed_uri.port or 80)) do |http|
+              final_uri = feed_uri.path 
+              final_uri += ('?' + feed_uri.query) if feed_uri.query
+              http_headers = {} if no_headers
+              response = http.request_get(final_uri, http_headers)
 
-          # Borrowed from open-uri:
-          # According to RFC2616 14.23, Host: request-header field should be
-          # set to an origin server.
-          # But net/http wrongly set a proxy server if an absolute URI is
-          # specified as a request URI.
-          # So override it here explicitly.
-          http_headers['Host'] = feed_uri.host
-          http_headers['Host'] += ":#{feed_uri.port}" if feed_uri.port
-        
-          Net::HTTP.start(feed_uri.host, (feed_uri.port or 80)) do |http|
-            final_uri = feed_uri.path 
-            final_uri += ('?' + feed_uri.query) if feed_uri.query
-            http_headers = {} if no_headers
-            response = http.request_get(final_uri, http_headers)
-
-            case response
-            when Net::HTTPSuccess
-              # We've reached the final destination, process all previous
-              # redirections, and see if we need to update the url.
-              for redirected_response in response_chain
-                if redirected_response.last.code.to_i == 301
-                  # Reset the cache object or we may get duplicate entries
-                  self.cache_object = nil
-                  self.url = redirected_response.last['location']
-                else
-                  # Jump out as soon as we hit anything that isn't a
-                  # permanently moved redirection.
-                  break
-                end
-              end
-              response
-            when Net::HTTPRedirection
-              if response.code.to_i == 304
-                response.error!
-              else
-                if response['location'].nil?
-                  raise FeedAccessError,
-                    "No location to redirect to supplied: " + response.code
-                end
-                response_chain << [feed_url, response]
-                new_location = response['location']
-                if response_chain.assoc(new_location) != nil
-                  raise FeedAccessError, "Redirection loop detected."
-                end
-              
-                # Find out if we've already seen the url we've been
-                # redirected to.
-                found_redirect = false
-                begin
-                  cached_feed = FeedTools::Feed.open(new_location,
-                    :cache_only => true)
-                  if cached_feed.cache_object != nil &&
-                      cached_feed.cache_object.new_record? != true
-                    unless cached_feed.expired?
-                      # Copy the cached state, starting with the url
-                      self.url = cached_feed.url
-                      self.title = cached_feed.title
-                      self.link = cached_feed.link
-                      self.feed_data = cached_feed.feed_data
-                      self.feed_data_type = cached_feed.feed_data_type
-                      self.last_retrieved = cached_feed.last_retrieved
-                      self.http_headers = cached_feed.http_headers
-                      self.cache_object = cached_feed.cache_object
-                      @live = false
-                      found_redirect = true
-                    end
+              case response
+              when Net::HTTPSuccess
+                # We've reached the final destination, process all previous
+                # redirections, and see if we need to update the url.
+                for redirected_response in response_chain
+                  if redirected_response.last.code.to_i == 301
+                    # Reset the cache object or we may get duplicate entries
+                    self.cache_object = nil
+                    self.url = redirected_response.last['location']
+                  else
+                    # Jump out as soon as we hit anything that isn't a
+                    # permanently moved redirection.
+                    break
                   end
-                rescue
-                  # If anything goes wrong, ignore it.
                 end
-                unless found_redirect
-                  # TODO: deal with stupid people using relative urls
-                  # in Location header
-                  # =================================================
-                  http_fetch.call(new_location, http_headers,
-                    redirect_limit - 1, response_chain, no_headers)
+                response
+              when Net::HTTPRedirection
+                if response.code.to_i == 304
+                  response.error!
                 else
-                  response
+                  if response['location'].nil?
+                    raise FeedAccessError,
+                      "No location to redirect to supplied: " + response.code
+                  end
+                  response_chain << [feed_url, response]
+                  new_location = response['location']
+                  if response_chain.assoc(new_location) != nil
+                    raise FeedAccessError, "Redirection loop detected: #{new_location}"
+                  end
+              
+                  # Find out if we've already seen the url we've been
+                  # redirected to.
+                  found_redirect = false
+                  begin
+                    cached_feed = FeedTools::Feed.open(new_location,
+                      :cache_only => true)
+                    if cached_feed.cache_object != nil &&
+                        cached_feed.cache_object.new_record? != true
+                      unless cached_feed.expired?
+                        # Copy the cached state, starting with the url
+                        self.url = cached_feed.url
+                        self.title = cached_feed.title
+                        self.link = cached_feed.link
+                        self.feed_data = cached_feed.feed_data
+                        self.feed_data_type = cached_feed.feed_data_type
+                        self.last_retrieved = cached_feed.last_retrieved
+                        self.http_headers = cached_feed.http_headers
+                        self.cache_object = cached_feed.cache_object
+                        @live = false
+                        found_redirect = true
+                      end
+                    end
+                  rescue
+                    # If anything goes wrong, ignore it.
+                  end
+                  unless found_redirect
+                    # TODO: deal with stupid people using relative urls
+                    # in Location header
+                    # =================================================
+                    http_fetch.call(new_location, http_headers,
+                      redirect_limit - 1, response_chain, no_headers)
+                  else
+                    response
+                  end
                 end
-              end
-            else
-              class << response
-                def response_chain
-                  return @response_chain
+              else
+                class << response
+                  def response_chain
+                    return @response_chain
+                  end
                 end
+                response.instance_variable_set("@response_chain",
+                  response_chain)
+                response.error!
               end
-              response.instance_variable_set("@response_chain",
-                response_chain)
-              response.error!
             end
+          rescue SocketError
+            raise FeedAccessError, 'Socket error prevented feed retrieval'
           end
         end
       
@@ -352,10 +353,10 @@ module FeedTools
           end
           unless @http_response.kind_of? Net::HTTPRedirection
             @http_headers = {}
-            self.http_response.each_header do |header|
-              self.http_headers[header.first.downcase] = header.last
+            self.http_response.each_header do |key, value|
+              self.http_headers[key.downcase] = value
             end
-            self.last_retrieved = Time.now
+            self.last_retrieved = Time.now.gmtime
             self.feed_data = self.http_response.body
           end
         rescue FeedAccessError
@@ -392,11 +393,11 @@ module FeedTools
           end
           if @http_response != nil
             @http_headers = {}
-            self.http_response.each_header do |header|
-              self.http_headers[header.first] = header.last
+            self.http_response.each_header do |key, value|
+              self.http_headers[key.downcase] = value
             end
             if self.http_response.code.to_i == 304
-              self.last_retrieved = Time.now
+              self.last_retrieved = Time.now.gmtime
             end
           end
           @live = false
@@ -427,7 +428,7 @@ module FeedTools
           open(file_name) do |file|
             @http_response = nil
             @http_headers = {}
-            self.last_retrieved = Time.now
+            self.last_retrieved = Time.now.gmtime
             self.feed_data = file.read
             self.feed_data_type = :xml
           end
@@ -502,14 +503,25 @@ module FeedTools
         @xml_doc = nil
       else
         if @xml_doc.nil?
+          # INQUIRY: Is there any way of saying "dude, rescue *everything*"?
           begin
-            # TODO: :ignore_whitespace_nodes => :all
-            # Add that?
-            # ======================================
-            @xml_doc = Document.new(feed_data)
+            begin
+              # TODO: :ignore_whitespace_nodes => :all
+              # Add that?
+              # ======================================
+              @xml_doc = Document.new(feed_data)
+            rescue Exception
+              # Something failed especially badly, attempt to repair the
+              # xml with htree.
+              @xml_doc = HTree.parse(feed_data).to_rexml
+            rescue
+              # Something failed, attempt to repair the xml with htree.
+              @xml_doc = HTree.parse(feed_data).to_rexml
+            end
+          rescue Exception
+            @xml_doc = nil
           rescue
-            # Something failed, attempt to repair the xml with htree.
-            @xml_doc = HTree.parse(feed_data).to_rexml
+            @xml_doc = nil
           end
         end
       end
@@ -602,6 +614,9 @@ module FeedTools
     # "rss", "atom", "cdf", "!okay/news"
     def feed_type
       if @feed_type.nil?
+        if self.root_node.nil?
+          return nil
+        end
         case self.root_node.name.downcase
         when "feed"
           @feed_type = "atom"
@@ -628,6 +643,9 @@ module FeedTools
     # versions of RSS 0.91.
     def feed_version
       if @feed_version.nil?
+        if self.root_node.nil?
+          return nil
+        end
         version = nil
         begin
           version = XPath.first(root_node, "@version").to_s.strip.to_f
@@ -681,12 +699,20 @@ module FeedTools
         unless channel_node.nil?
           @id = XPath.first(channel_node, "id/text()").to_s
           if @id == ""
+            @id = XPath.first(channel_node, "atom:id/text()",
+              FEED_TOOLS_NAMESPACES).to_s
+          end
+          if @id == ""
             @id = XPath.first(channel_node, "guid/text()").to_s
           end
         end
         unless root_node.nil?
           if @id == "" || @id.nil?
             @id = XPath.first(root_node, "id/text()").to_s
+          end
+          if @id == ""
+            @id = XPath.first(root_node, "atom:id/text()",
+              FEED_TOOLS_NAMESPACES).to_s
           end
           if @id == ""
             @id = XPath.first(root_node, "guid/text()").to_s
@@ -704,9 +730,66 @@ module FeedTools
   
     # Returns the feed url.
     def url
-      if @url.nil? && self.feed_data != nil
+      original_url = @url
+      override_url = lambda do
+        begin
+          if @url == nil && self.feed_data != nil
+            true
+          elsif @url != nil &&
+              !(["http", "https"].include?(URI.parse(@url).scheme))
+            if self.feed_data != nil
+              true
+            else
+              false
+            end
+          else
+            false
+          end
+        rescue
+          true
+        end
+      end
+      if override_url.call
         @url = XPath.first(channel_node, "link[@rel='self']/@href").to_s
         @url = nil if @url == ""
+        if override_url.call
+          @url = XPath.first(channel_node, "atom:link[@rel='self']/@href").to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "atom:link[@rel='self']/@href",
+            FEED_TOOLS_NAMESPACES).to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "atom03:link[@rel='self']/@href",
+            FEED_TOOLS_NAMESPACES).to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "admin:feed/@rdf:resource").to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "admin:feed/@rdf:resource",
+            FEED_TOOLS_NAMESPACES).to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "admin:feed/@resource").to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "feed/@rdf:resource").to_s
+          @url = nil if @url == ""
+        end
+        if override_url.call
+          @url = XPath.first(channel_node, "feed/@resource").to_s
+          @url = nil if @url == ""
+        end
+        if @url == nil
+          @url = original_url
+        end
       end
       return @url
     end
@@ -851,7 +934,7 @@ module FeedTools
         unless @description.nil?
           @description = FeedTools.sanitize_html(@description, :strip)
           @description = FeedTools.unescape_entities(@description) if repair_entities
-          @description = FeedTools.tidy_html(@description) unless repair_entities
+          @description = FeedTools.tidy_html(@description)
         end
 
         @description = @description.strip unless @description.nil?
@@ -1213,7 +1296,7 @@ module FeedTools
       return @itunes_author
     end
 
-    # Returns the feed item time
+    # Returns the feed time
     def time
       if @time.nil?
         unless channel_node.nil?
@@ -1233,15 +1316,12 @@ module FeedTools
         end
         begin
           if time_string != nil && time_string != ""
-            @time = Time.parse(time_string) rescue self.succ_time
-          elsif time_string == nil
-            @time = self.succ_time
-          end
-          if @time == nil
-            @time = Time.now
+            @time = Time.parse(time_string)
+          else
+            @time = Time.now.gmtime
           end
         rescue
-          @time = Time.now
+          @time = Time.now.gmtime
         end
       end
       return @time
@@ -1252,29 +1332,6 @@ module FeedTools
       @time = new_time
     end
   
-    # Returns 1 second after the previous item's time.
-    def succ_time #:nodoc:
-      begin
-        if feed.nil?
-          return nil
-        end
-        feed.items
-        unsorted_items = feed.instance_variable_get("@items")
-        item_index = unsorted_items.index(self)
-        if item_index.nil?
-          return nil
-        end
-        if item_index <= 0
-          return Time.now
-        end
-        previous_item = unsorted_items[item_index - 1]
-        return previous_item.time.succ
-      rescue
-        return nil
-      end
-    end
-    private :succ_time
-
     # Returns the feed item updated time
     def updated
       if @updated.nil?
@@ -1729,7 +1786,7 @@ module FeedTools
         # create the individual feed items
         @items = []
         if raw_items != nil
-          for item_node in raw_items
+          for item_node in raw_items.reverse
             new_item = FeedItem.new
             new_item.feed_data = item_node.to_s
             new_item.feed_data_type = self.feed_data_type
@@ -1794,7 +1851,7 @@ module FeedTools
     # server.
     def expired?
       return self.last_retrieved == nil ||
-        (self.last_retrieved + self.time_to_live) < Time.now
+        (self.last_retrieved + self.time_to_live) < Time.now.gmtime
     end
   
     # Forces this feed to expire.
@@ -1816,19 +1873,19 @@ module FeedTools
       if feed_type == "rss" && (version == nil || version == 0.0)
         version = 1.0
       elsif feed_type == "atom" && (version == nil || version == 0.0)
-        version = 0.3
+        version = 1.0
       end
       if feed_type == "rss" && (version == 0.9 || version == 1.0 ||
           version == 1.1)
         # RDF-based rss format
         return xml_builder.tag!("rdf:RDF",
-            "xmlns" => "http://purl.org/rss/1.0/",
-            "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-            "xmlns:dc" => "http://purl.org/dc/elements/1.1/",
-            "xmlns:syn" => "http://purl.org/rss/1.0/modules/syndication/",
-            "xmlns:taxo" => "http://purl.org/rss/1.0/modules/taxonomy/",
-            "xmlns:itunes" => "http://www.itunes.com/DTDs/Podcast-1.0.dtd",
-            "xmlns:media" => "http://search.yahoo.com/mrss") do
+            "xmlns" => FEED_TOOLS_NAMESPACES['rss10'],
+            "xmlns:rdf" => FEED_TOOLS_NAMESPACES['rdf'],
+            "xmlns:dc" => FEED_TOOLS_NAMESPACES['dc'],
+            "xmlns:syn" => FEED_TOOLS_NAMESPACES['syn'],
+            "xmlns:taxo" => FEED_TOOLS_NAMESPACES['taxo'],
+            "xmlns:itunes" => FEED_TOOLS_NAMESPACES['itunes'],
+            "xmlns:media" => FEED_TOOLS_NAMESPACES['media']) do
           channel_attributes = {}
           unless self.link.nil?
             channel_attributes["rdf:about"] = CGI.escapeHTML(self.link)
@@ -1911,13 +1968,12 @@ module FeedTools
       elsif feed_type == "rss"
         # normal rss format
         return xml_builder.rss("version" => "2.0",
-            "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-            "xmlns:dc" => "http://purl.org/dc/elements/1.1/",
-            "xmlns:taxo" => "http://purl.org/rss/1.0/modules/taxonomy/",
-            "xmlns:trackback" =>
-              "http://madskills.com/public/xml/rss/module/trackback/",
-            "xmlns:itunes" => "http://www.itunes.com/DTDs/Podcast-1.0.dtd",
-            "xmlns:media" => "http://search.yahoo.com/mrss") do
+            "xmlns:rdf" => FEED_TOOLS_NAMESPACES['rdf'],
+            "xmlns:dc" => FEED_TOOLS_NAMESPACES['dc'],
+            "xmlns:taxo" => FEED_TOOLS_NAMESPACES['taxo'],
+            "xmlns:trackback" => FEED_TOOLS_NAMESPACES['trackback'],
+            "xmlns:itunes" => FEED_TOOLS_NAMESPACES['itunes'],
+            "xmlns:media" => FEED_TOOLS_NAMESPACES['media']) do
           xml_builder.channel do
             unless title.nil? || title == ""
               xml_builder.title(title)
@@ -1941,7 +1997,7 @@ module FeedTools
         end
       elsif feed_type == "atom" && version == 0.3
         # normal atom format
-        return xml_builder.feed("xmlns" => "http://purl.org/atom/ns#",
+        return xml_builder.feed("xmlns" => FEED_TOOLS_NAMESPACES['atom03'],
             "version" => version,
             "xml:lang" => language) do
           unless title.nil? || title == ""
@@ -1984,7 +2040,7 @@ module FeedTools
         end
       elsif feed_type == "atom" && version == 1.0
         # normal atom format
-        return xml_builder.feed("xmlns" => "http://www.w3.org/2005/Atom",
+        return xml_builder.feed("xmlns" => FEED_TOOLS_NAMESPACES['atom'],
             "xml:lang" => language) do
           unless title.nil? || title == ""
             xml_builder.title(title,
@@ -2028,10 +2084,7 @@ module FeedTools
             # than the Time.now fall-back.
             xml_builder.updated(self.time.iso8601)
           else
-            xml_builder.updated(Time.now.iso8601)
-          end
-          unless self.published.nil?
-            xml_builder.published(self.published.iso8601)            
+            xml_builder.updated(Time.now.gmtime.iso8601)
           end
           xml_builder.generator("FeedTools - " +
             "http://www.sporkmonger.com/projects/feedtools")

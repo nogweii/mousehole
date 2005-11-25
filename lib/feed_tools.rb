@@ -32,13 +32,14 @@ FEED_TOOLS_ENV = ENV['FEED_TOOLS_ENV'] ||
                  ENV['RAILS_ENV'] ||
                  'production' # :nodoc:
 
-FEED_TOOLS_VERSION = "0.2.15"
+FEED_TOOLS_VERSION = "0.2.17"
 
 FEED_TOOLS_NAMESPACES = {
   "admin" => "http://webns.net/mvcb/",
   "ag" => "http://purl.org/rss/1.0/modules/aggregation/",
   "annotate" => "http://purl.org/rss/1.0/modules/annotate/",
   "atom" => "http://www.w3.org/2005/Atom",
+  "atom03" => "http://purl.org/atom/ns#",
   "audio" => "http://media.tangent.org/rss/1.0/",
   "blogChannel" => "http://backend.userland.com/blogChannelModule",
   "cc" => "http://web.resource.org/cc/",
@@ -64,6 +65,7 @@ FEED_TOOLS_NAMESPACES = {
   "rdfs" => "http://www.w3.org/2000/01/rdf-schema#",
   "ref" => "http://purl.org/rss/1.0/modules/reference/",
   "reqv" => "http://purl.org/rss/1.0/modules/richequiv/",
+  "rss10" => "http://purl.org/rss/1.0/",
   "search" => "http://purl.org/rss/1.0/modules/search/",
   "slash" => "http://purl.org/rss/1.0/modules/slash/",
   "soap" => "http://schemas.xmlsoap.org/soap/envelope/",
@@ -81,38 +83,38 @@ FEED_TOOLS_NAMESPACES = {
   "xml" => "http://www.w3.org/XML/1998/namespace"
 }
 
-begin
-  require 'iconv'
-rescue LoadError
-  warn("The Iconv library does not appear to be installed properly.  " +
-    "FeedTools cannot function properly without it.")
-  raise
-end
+  begin
+    require 'iconv'
+  rescue LoadError
+    warn("The Iconv library does not appear to be installed properly.  " +
+      "FeedTools cannot function properly without it.")
+    raise
+  end
 
-require 'builder'
+    require 'builder'
 
-begin
-  require 'tidy'
-rescue LoadError
-  # Ignore the error for now.
-end
+  begin
+    require 'tidy'
+  rescue LoadError
+    # Ignore the error for now.
+  end
 
 require 'htree'
 
-require 'net/http'
-require 'net/https'
-require 'net/ftp'
+  require 'net/http'
+  require 'net/https'
+  require 'net/ftp'
 
-require 'rexml/document'
+  require 'rexml/document'
 
-require 'uri'
-require 'time'
-require 'cgi'
-require 'pp'
-require 'yaml'
+  require 'uri'
+  require 'time'
+  require 'cgi'
+  require 'pp'
+  require 'yaml'
 
-require 'feed_tools/feed'
-require 'feed_tools/feed_item'
+  require 'feed_tools/feed'
+  require 'feed_tools/feed_item'
 
 #= feed_tools.rb
 #
@@ -148,16 +150,21 @@ module FeedTools
   end
   
   # Sets the current caching mechanism.  If set to nil, disables caching.
+  # Default is the DatabaseFeedCache class.
   #
   # Objects of this class must accept the following messages:
+  #  id
+  #  id=
   #  url
   #  url=
   #  title
   #  title=
   #  link
   #  link=
-  #  xml_data
-  #  xml_data=
+  #  feed_data
+  #  feed_data=
+  #  feed_data_type
+  #  feed_data_type=
   #  etag
   #  etag=
   #  last_modified
@@ -323,11 +330,18 @@ module FeedTools
       return nil
     end
     normalized_url = url.strip
-    
+
     # if a url begins with the '/' character, it only makes sense that they
     # meant to be using a file:// url.  Fix it for them.
     if normalized_url.length > 0 && normalized_url[0..0] == "/"
       normalized_url = "file://" + normalized_url
+    end
+    
+    # if a url begins with a drive letter followed by a colon, we're looking at
+    # a file:// url.  Fix it for them.
+    if normalized_url.length > 0 &&
+        normalized_url.scan(/^[a-zA-Z]:[\\\/]/).size > 0
+      normalized_url = "file:///" + normalized_url
     end
     
     # if a url begins with javascript:, it's quite possibly an attempt at
@@ -348,13 +362,11 @@ module FeedTools
     normalized_url.gsub!(/^https:\/*/, "https://")
     # fix (very) bad urls (usually of the user-entered sort)
     normalized_url.gsub!(/^http:\/*(http:\/*)*/, "http://")
-    if (normalized_url =~ /^file:/) == 0
-      # fix bad Windows-based entries
-      normalized_url.gsub!(/file:\/\/\/([a-zA-Z]):/, 'file:///\1|')
 
-      # maybe this is too aggressive?
+    if (normalized_url =~ /^file:/) == 0
+      # Adjust windows-style urls
+      normalized_url.gsub!(/^file:\/\/\/([a-zA-Z])\|/, 'file:///\1:')
       normalized_url.gsub!(/\\/, '/')
-      return normalized_url
     else
       if (normalized_url =~ /https?:\/\//) == nil
         normalized_url = "http://" + normalized_url
@@ -374,11 +386,17 @@ module FeedTools
           feed_uri.path.gsub!(/^[\/]+/, "/")
         end
         feed_uri.host.downcase!
-        return feed_uri.to_s
+        normalized_url = feed_uri.to_s
       rescue URI::InvalidURIError
-        return normalized_url
       end
     end
+    
+    # We can't do a proper set of escaping, so this will
+    # have to do.
+    normalized_url.gsub!(/%20/, " ")
+    normalized_url.gsub!(/ /, "%20")
+    
+    return normalized_url
   end
   
   # Converts a url into a tag uri
@@ -473,12 +491,13 @@ module FeedTools
         tidy.options.numeric_entities = true
         tidy.options.markup = true
         tidy.options.indent = false
-        tidy.options.wrap_attributes = true
+        tidy.options.wrap = 0
         tidy.options.logical_emphasis = true
         # TODO: Make this match the actual encoding of the feed
         # =====================================================
-        tidy.options.char_encoding = "utf8"
-        tidy.options.ascii_chars = true
+        tidy.options.input_encoding = "utf8"
+        tidy.options.output_encoding = "ascii"
+        tidy.options.ascii_chars = false
         tidy.options.doctype = "omit"        
         xml = tidy.clean(html)
         xml
@@ -493,6 +512,8 @@ module FeedTools
       end
       tidy_html.gsub!(/&#x26;/, "&amp;")
       tidy_html.gsub!(/&#38;/, "&amp;")
+      tidy_html.gsub!(/\320\262\320\202\342\204\242/, "\342\200\231")
+      
     else
       tidy_html = html
     end
@@ -570,7 +591,7 @@ module FeedTools
   # Creates a merged "planet" feed from a set of urls.
   def FeedTools.build_merged_feed(url_array)
     return nil if url_array.nil?
-    merged_feed = Feed.new
+    merged_feed = FeedTools::Feed.new
     retrieved_feeds = []
     feed_threads = []
     url_array.each do |feed_url|

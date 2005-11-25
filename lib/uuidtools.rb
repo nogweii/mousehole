@@ -21,7 +21,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #++
 
-UUID_TOOLS_VERSION = "0.1.3"
+UUID_TOOLS_VERSION = "0.1.4"
 
 require 'uri'
 require 'time'
@@ -101,6 +101,7 @@ require 'digest/md5'
 #  UUID.random_create
 #  => #<UUID:0x19013a UUID:984265dc-4200-4f02-ae70-fe4f48964159>
 class UUID
+  @@mac_address = nil
   @@last_timestamp = nil
   @@last_node_id = nil
   @@last_clock_sequence = nil
@@ -245,7 +246,7 @@ class UUID
         # The node id has changed.  Change the clock id.
         clock_sequence = UUID.convert_byte_string_to_int(UUID.true_random)
       elsif @@last_timestamp != nil &&
-          gmt_timestamp_100_nanoseconds < @@last_timestamp
+          gmt_timestamp_100_nanoseconds <= @@last_timestamp
         clock_sequence = clock_sequence + 1
       end
       @@last_timestamp = gmt_timestamp_100_nanoseconds
@@ -458,42 +459,45 @@ class UUID
   # Returns the MAC address of the current computer's network card.
   # Returns nil if a MAC address could not be found.
   def UUID.get_mac_address #:nodoc:
-    if RUBY_PLATFORM =~ /win/ && !(RUBY_PLATFORM =~ /darwin/)
-      begin
-        ifconfig_output = `ipconfig /all`
-        mac_addresses = ifconfig_output.scan(
-          Regexp.new("(#{(["[0-9A-F]{2}"] * 6).join("-")})"))
-        if mac_addresses.size > 0
-          return mac_addresses.first.first.downcase.gsub(/-/, ":")
-        end
-      rescue
-      end
-    else
-      begin
-        ifconfig_output = `ifconfig`
-        mac_addresses = ifconfig_output.scan(
-          Regexp.new("ether (#{(["[0-9a-f]{2}"] * 6).join(":")})"))
-        if mac_addresses.size == 0
-          ifconfig_output = `ifconfig | grep HWaddr | cut -c39-`
+    if @@mac_address.nil?
+      if RUBY_PLATFORM =~ /win/ && !(RUBY_PLATFORM =~ /darwin/)
+        begin
+          ifconfig_output = `ipconfig /all`
           mac_addresses = ifconfig_output.scan(
-            Regexp.new("(#{(["[0-9a-f]{2}"] * 6).join(":")})"))
+            Regexp.new("(#{(["[0-9a-fA-F]{2}"] * 6).join("-")})"))
+          if mac_addresses.size > 0
+            @@mac_address = mac_addresses.first.first.downcase.gsub(/-/, ":")
+          end
+        rescue
         end
-        if mac_addresses.size == 0
-          ifconfig_output = `/sbin/ifconfig`
+      else
+        begin
+          ifconfig_output = `ifconfig`
           mac_addresses = ifconfig_output.scan(
-            Regexp.new("ether (#{(["[0-9a-f]{2}"] * 6).join(":")})"))
+            Regexp.new("ether (#{(["[0-9a-fA-F]{2}"] * 6).join(":")})"))
+          if mac_addresses.size == 0
+            ifconfig_output = `ifconfig | grep HWaddr | cut -c39-`
+            mac_addresses = ifconfig_output.scan(
+              Regexp.new("(#{(["[0-9a-fA-F]{2}"] * 6).join(":")})"))
+          end
+          if mac_addresses.size == 0
+            ifconfig_output = `/sbin/ifconfig`
+            mac_addresses = ifconfig_output.scan(
+              Regexp.new("ether (#{(["[0-9a-fA-F]{2}"] * 6).join(":")})"))
+          end
+          if mac_addresses.size == 0
+            ifconfig_output = `/sbin/ifconfig | grep HWaddr | cut -c39-`
+            mac_addresses = ifconfig_output.scan(
+              Regexp.new("(#{(["[0-9a-fA-F]{2}"] * 6).join(":")})"))
+          end
+          if mac_addresses.size > 0
+            @@mac_address = mac_addresses.first.first
+          end
+        rescue
         end
-        if mac_addresses.size == 0
-          ifconfig_output = `/sbin/ifconfig | grep HWaddr | cut -c39-`
-          mac_addresses = ifconfig_output.scan(
-            Regexp.new("(#{(["[0-9a-f]{2}"] * 6).join(":")})"))
-        end
-        if mac_addresses.size > 0
-          return mac_addresses.first.first
-        end
-      rescue
       end
     end
+    return @@mac_address
   end
   
   # Returns 128 bits of highly unpredictable data.
