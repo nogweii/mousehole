@@ -29,6 +29,7 @@ require 'mouseHole/userscript'
 require 'mouseHole/starmonkey'
 require 'mouseHole/proxyserver'
 require 'mouseHole/databases'
+require 'mouseHole/metamake'
 
 module MouseHole
 
@@ -45,8 +46,6 @@ module MouseHole
 
     # Scripts use this method.
     def self.script &blk
-        uscript = UserScript.new
-        uscript.instance_eval &blk
-        uscript
+        MetaMake(UserScript, &blk)
     end
 end

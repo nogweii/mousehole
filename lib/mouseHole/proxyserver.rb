@@ -135,12 +135,17 @@ def self.ProxyServer( base_proxy )
                     script.method( "#{ k }=" ).call( v )
                 end
                 script.extend @mousehole_utils
-                if script.mount
-                    MouseHole::HOSTS[script.mount.to_s] = "#{ config[:ServerName] }:#{ config[:Port] }"
-                    MouseHole::HOSTS["mouse.#{ script.mount }"] = "#{ config[:ServerName] }:#{ config[:Port] }"
+                dir, blk = script.mount_on
+                if dir
+                    MouseHole::HOSTS[dir.to_s] = "#{ config[:ServerName] }:#{ config[:Port] }"
+                    MouseHole::HOSTS["mouse.#{ dir }"] = "#{ config[:ServerName] }:#{ config[:Port] }"
                 end
             rescue Exception => e
                 script = e
+                class << e
+                    attr_accessor :mtime
+                end
+                e.mtime = Time.now
             end
             @user_scripts[userb] = script
         end
@@ -313,9 +318,10 @@ def self.ProxyServer( base_proxy )
                 script_count = 0
             each_fresh_script :all do |path, script|
                 mounted = nil
-                if script.respond_to? :mount
-                    if script.mount
-                        mounted = %{<p class="mount">[<a href="/#{ script.mount }">/#{ script.mount }</a>]</p>}
+                if script.respond_to? :mount_on
+                    dir, blk = script.mount_on
+                    if dir
+                        mounted = %{<p class="mount">[<a href="/#{ dir }">/#{ dir }</a>]</p>}
                     end
                     content += %{<li><input type="checkbox" name="#{ File.basename path }/toggle"
                         onClick="sndReq('/mouseHole/toggle/#{ File.basename path }')"
@@ -407,10 +413,11 @@ def self.ProxyServer( base_proxy )
                             item.dc :date, script.mtime
                             item.description script.description
                         end
-                        if script.mount
+                        if script.mount_on
                             c.item do |item|
-                                uri.path = "/#{ script.mount }"
-                                item.title "#{ script.name }: Mounted at /#{ script.mount }"
+                                dir, blk = script.mount_on
+                                uri.path = "/#{ dir }"
+                                item.title "#{ script.name }: Mounted at /#{ dir }"
                                 item.link "#{ uri }"
                                 item.guid "#{ uri }"
                             end
@@ -777,7 +784,8 @@ def self.ProxyServer( base_proxy )
         def scripted_mounts( request, response )
             # return not_allowed( request, response ) unless  MouseHole.allow_from? request.peeraddr[2].strip 
             each_fresh_script do |path, script|
-                hostmap = {script.mount.to_s => "mh", "mouse.#{ script.mount }" => "mouse.hole"}
+                dir, blk = script.mount_on
+                hostmap = {dir.to_s => "mh", "mouse.#{ dir }" => "mouse.hole"}
                 if hostmap.has_key? request.request_uri.host
                     response['location'] = "http://#{ hostmap[ request.request_uri.host ] }/#{ script.mount }#{ request.request_uri.path }"
                     raise WEBrick::HTTPStatus::Found
@@ -799,11 +807,12 @@ def self.ProxyServer( base_proxy )
             path_parts = request.path_info.split( '/' ).reject { |x| x.to_s.strip.size == 0 }
             mount = path_parts.shift.to_s.strip
             each_fresh_script do |path, script|
-                if mount =~ /^\/*#{ script.mount }$/
-                    script.do_mount( path_parts.join( '/' ), request, response )
-                    no_cache response
-                    return
-                end
+                dir, blk = script.mount_on
+                next unless mount =~ /^\/*#{ dir }$/
+
+                script.do_mount( path_parts.join( '/' ), request, response )
+                no_cache response
+                return
             end
             raise WEBrick::HTTPStatus::NotFound, "No mouseHole script answered for `#{ mount }'"
         end
