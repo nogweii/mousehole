@@ -5,7 +5,7 @@ require 'webrick/httpproxy'
 require './lib/mouseHole'
 
 options = OpenStruct.new
-options.tidy = true
+options.tidy = false
 options.server = "webrick"
 options.db_driver = "yaml"
 options.daemon = false

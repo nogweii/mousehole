@@ -70,7 +70,7 @@ class String
 	|b|
 	c = b.chr
 	case c
-	when /\\|\">/
+	when /\\|\"/
 	  newstr << "\\" + c
 	when "\b"
 	  newstr << "\\b"

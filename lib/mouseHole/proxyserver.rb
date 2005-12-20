@@ -236,7 +236,7 @@ def self.ProxyServer( base_proxy )
         # Also detects user scripts in the wild.
         def upwink( req, res )
             unless is_mousehole? req
-                if req.request_uri.path =~ /\.user\.(rb|js)$/
+                if req.request_uri.path =~ /\.user\.(rb|js)$/ and not req.query['installer'] == 'false'
                     check_cache res
                     if res.status == 200
                         decode(res)
@@ -436,7 +436,7 @@ def self.ProxyServer( base_proxy )
             body = %{<div id="installer"><h1>Database dump</h1>}
             databases.each do |area, db|
                 body += %[<h2>#{ area }</h2>
-                    <pre style="font-size: 10px;">#{ db.inject( {} ) { |hsh,(k,v)| hsh[k] = v; hsh }.to_yaml }</pre>]
+                    <pre style="font-size: 10px;">#{ WEBrick::HTMLUtils::escape( db.inject( {} ) { |hsh,(k,v)| hsh[k] = v; hsh }.to_yaml ) }</pre>]
             end
             unless req.query['all']
                 body += %{<p><a href="?all=1">Show all data</a></p>}
@@ -602,6 +602,7 @@ def self.ProxyServer( base_proxy )
                 </div>
                 <br clear="all" />
                 <h2>View Source</h2>
+                <p>[<a href="?installer=false">Download the Script</a>]</p>
                 <textarea cols="20" rows="30">#{ WEBrick::HTMLUtils::escape e.code }</textarea>
                 <input type="hidden" name="script_id" value="#{ e.script_id }" />
                 <input type="button" name="dont_do_it" value="Cancel" onClick="history.back()" />
@@ -616,6 +617,7 @@ def self.ProxyServer( base_proxy )
                 <p>#{ e.obj.message } [<a href="javascript:void(0);" onClick="document.getElementById('backtrace').style.display='';">backtrace</a>]</p>
                 <div id="backtrace" style="display:none;"><pre>#{ e.obj.backtrace }</pre></div>
                 <h2>View Source</h2>
+                <p>[<a href="?installer=false">Download the Script</a>]</p>
                 <textarea cols="20" rows="30">#{ WEBrick::HTMLUtils::escape e.code }</textarea>
                 <input type="button" name="dont_do_it" value="Cancel" onClick="history.back()" />
                 </div>]
@@ -926,11 +928,12 @@ def self.ProxyServer( base_proxy )
             end
 
             # Check our internal HOSTS registry
-            if defined? MouseHole::HOSTS and MouseHole::HOSTS.has_key? req.request_uri.host
-                ip, port = MouseHole::HOSTS[req.request_uri.host].split(/:/)
-                req.request_uri.host = ip
-                req.request_uri.port = port.to_i if port
-            end
+            # if defined? MouseHole::HOSTS and MouseHole::HOSTS.has_key? req.request_uri.host
+            #     ip, port = MouseHole::HOSTS[req.request_uri.host].split(/:/)
+            #     header['Host'] = req.request_uri.host
+            #     req.request_uri.host = ip
+            #     req.request_uri.port = port.to_i if port
+            # end
 
             response = nil
             begin
