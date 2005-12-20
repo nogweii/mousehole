@@ -206,10 +206,10 @@ def self.ProxyServer( base_proxy )
             # watch for possible HTML, allow caching of proxy-processed content
             if req.header['accept'].to_s =~ %r!text/html!
                 etag = req.header['if-none-match'].to_s
-                unless etag and @etags[etag]
+                if not ( etag and @etags[etag] )
                     req.header.delete 'if-modified-since'
                     req.header.delete 'if-none-match'
-                else
+                elsif req.header['if-none-match']
                     req.header['if-none-match'][0].gsub!( /^(.)MH-/, '\1' )
                 end
             end

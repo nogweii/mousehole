@@ -1,3 +1,4 @@
+require 'net/protocol'
 #
 # DNS hack to override based on HOSTS constant
 #
