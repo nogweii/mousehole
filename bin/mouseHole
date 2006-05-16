@@ -1,14 +1,17 @@
 #!/usr/bin/env ruby
+$:.unshift File.expand_path("../../lib", __FILE__)
 require 'optparse'
 require 'ostruct'
 require 'webrick/httpproxy'
-require './lib/mouseHole'
+require 'mouseHole'
 
 options = OpenStruct.new
 options.tidy = false
-options.server = "webrick"
-options.db_driver = "yaml"
+options.server = "mongrel"
 options.daemon = false
+options.working_dir = Dir.pwd
+options.server_log = "-"
+options.log_level = Logger::INFO
 
 # locate ~/.mouseHole
 homes = []
@@ -17,7 +20,7 @@ homes << [ENV['APPDATA'], File.join( ENV['APPDATA'], 'MouseHole' )] if ENV['APPD
 homes.each do |home_top, home_dir|
     next unless home_top
     if File.exists? home_top
-        File.makedirs( home_dir )
+        FileUtils.mkdir_p( home_dir )
         conf = File.join( home_dir, 'options.yaml' )
         if File.exists? conf
             YAML.load_file( conf ).each { |k,v| options.method("#{k}=").call(v) }
@@ -51,8 +54,8 @@ opts = OptionParser.new do |opts|
         options.tidy = t
     end
 
-    opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
-        options.verbose = v
+    opts.on("-v", "--verbose", "Run verbosely") do |v|
+        options.log_level = Logger::WARN
     end
 
     opts.separator ""
@@ -73,12 +76,14 @@ opts = OptionParser.new do |opts|
 end
 
 opts.parse! ARGV
-options.host = ARGV[0] || "127.0.0.1"
-options.port = ARGV[1] || 37004
+options.host = ARGV[0] || "0.0.0.0"
+options.port = ARGV[1] || 3704
 
 proxy_uri = nil
 if env_http_proxy = ENV["HTTP_PROXY"]
     proxy_uri = URI.parse(env_http_proxy)
+    options.proxy_host = proxy_uri.host
+    options.proxy_port = proxy_uri.port
 end
 options.app_dir = Dir.pwd
 if defined? RUBYSCRIPT2EXE_APPEXE
@@ -86,87 +91,103 @@ if defined? RUBYSCRIPT2EXE_APPEXE
 end
 options.lib_dir = File.join( options.app_dir, 'lib' )
 options.share_dir = File.join( options.app_dir, 'share' )
-options.temp_dir = File.join( options.mouse_dir, 'temp' )
-options.log_dir = File.join( options.mouse_dir, 'log' )
 options.auto_marshal = %{Marshal.load( #{ Marshal.dump( options ).dump } )}
-File.makedirs( options.temp_dir )
-File.makedirs( options.log_dir )
+options.database ||= {:adapter => 'sqlite3', :database => File.join( options.mouse_dir, '+DATA' )}
+
+options.logger = 
+    case options.server_log
+    when "-"
+        Logger.new STDOUT
+    when String
+        Logger.new options.server_log
+    end
+options.logger.level = options.log_level
 
 case options.server
-when "gserver", "webrick"
-    prox = WEBrick::HTTPProxyServer
-    if options.server == "gserver"
-        require 'mouseHole/httpserver'
-        prox = MouseHole::HttpServer
-    end
-    server = MouseHole::ProxyServer( prox )::new( options,
-        :BindAddress => options.host,
-        :Port => options.port,
-        :ProxyURI => proxy_uri,
-        :ServerType => options.daemon ? WEBrick::Daemon : WEBrick::SimpleServer
-    )
-    server.mount( "/images", WEBrick::HTTPServlet::FileHandler, File.join( options.app_dir, 'images' ) )
-    trap( :INT ) { server.shutdown }
-    server.start
-when "lighttpd"
-    require 'erb'
-    File.makedirs( File.join( options.temp_dir, 'lighttpd' ) )
-    lighttpd_conf = File.join( options.temp_dir, 'lighttpd', 'lighttpd.conf' )
-    File.open( lighttpd_conf, 'w' ) do |f|
-        f << ERB.new( File.read( options.share_dir + '/lighttpd/lighttpd.conf' ) ).result
-    end
-    dispatch_cgi = File.join( options.temp_dir, 'lighttpd', 'dispatch.fcgi' )
-    File.open( dispatch_cgi, 'w' ) do |f|
-        f << ERB.new( File.read( options.share_dir + '/lighttpd/dispatch.fcgi' ) ).result
-    end
-    File.chmod( 0755, dispatch_cgi )
-    lighttpd_path = `which lighttpd 2>/dev/null; whereis lighttpd`.
-        scan( %r!(?:^|\s)/\S+/lighttpd(?:$|\s)! ).detect { |ctl| ctl.strip!
-            `#{ctl} -v` =~ %r!lighttpd-1\.! }
-    abort( "** No lighttpd found, make sure it's in your PATH?" ) unless lighttpd_path
-    `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
-when "apache2"
-    require 'erb'
-    a2_dir = File.join( options.share_dir, 'apache2' )
-    a2_temp = File.join( options.temp_dir, 'apache2' )
-    a2_path = 
-        `which apache2ctl 2>/dev/null; whereis apache2ctl; 
-         which apachectl 2>/dev/null; whereis apachectl`.
-            scan( %r!\s/\S+/apache2?ctl\s! ).detect { |ctl| ctl.strip!
-                `#{ctl} -v` =~ %r!Apache/2\.! }
-    abort( "** No apachectl or apache2ctl found, make sure it's in your PATH?" ) unless a2_path
-    a2 = `#{ a2_path } -V`.scan( /-D\s*(\w+)\s*=\s*"(.+)"/ ).
-            inject({}) { |hsh,(k,v)| hsh[k] = v; hsh }
-    a2_conf = File.expand_path( a2['SERVER_CONFIG_FILE'], a2['HTTPD_ROOT'] )
-    File.foreach( a2_conf ) do |line|
-        case line
-        when /^\s*ServerRoot\s+("(.+?)"|(\S+))/
-            options.server_root = ($2 || $1).strip
-        when /^\s*LoadModule\s+(\w+)\s+(\S+)/
-            mod_name, mod_path = $1, $2
-            options.modules ||= Hash.new do |hsh,k|
-                `find #{ options.server_root } -name "mod_#{ k }.*"`.
-                    gsub( /^#{ options.server_root }\/?/, '' )
-            end
-            options.modules[mod_name.gsub( /_module$/, '' )] = mod_path
+when "mongrel"
+    require 'mongrel'
+    require 'mongrel/camping'
+    class RedirectHandler < Mongrel::HttpHandler
+        def initialize(path)
+            @response = "HTTP/1.1 302 Found\r\nLocation: #{path}\r\nConnection: close\r\n\r\n"
+        end
+        def process(request, response)
+            response.socket.write(@response)
         end
     end
+    config = Mongrel::Configurator.new :host => options.host do
+        listener :port => options.port do
+            MouseHole::CENTRAL = MouseHole::Central.new(self, options)
+            uri 'http:',      :handler => MouseHole::ProxyHandler.new(MouseHole::CENTRAL)
+            uri '/',          :handler => RedirectHandler.new("/doorway")
+            uri '/doorway',   :handler => Mongrel::Camping::CampingHandler.new(MouseHole)
+            uri '/static',    :handler => Mongrel::DirHandler.new(File.join(options.app_dir, 'static'))
+            trap('INT') { stop }
+            run
+        end
+    end
+    config.join
 
-    files = {}
-    Dir["#{a2_dir}/**/*"].each do |from_file|
-        next if File.directory? from_file
-        to_file = from_file.gsub( a2_dir, a2_temp ).
-                            gsub( /\/dot\./, '/.' )
-        unless File.exists? File.dirname( to_file )
-            File.makedirs( File.dirname( to_file ) )
-        end
-        File.open( to_file, 'w' ) do |f|
-            f << ERB.new( File.read( from_file ) ).result
-        end
-        files[to_file.gsub("#{a2_temp}/", '')] = to_file
-    end
-    File.chmod( 0755, files['htdocs/index.rbx'] )
-    `#{ a2_path } -f #{ files['httpd.conf'] }`
+# THESE SERVERS NEED TO BE REWRITTEN, RETESTED
+# when "lighttpd"
+#     require 'erb'
+#     File.makedirs( File.join( options.temp_dir, 'lighttpd' ) )
+#     lighttpd_conf = File.join( options.temp_dir, 'lighttpd', 'lighttpd.conf' )
+#     File.open( lighttpd_conf, 'w' ) do |f|
+#         f << ERB.new( File.read( options.share_dir + '/lighttpd/lighttpd.conf' ) ).result
+#     end
+#     dispatch_cgi = File.join( options.temp_dir, 'lighttpd', 'dispatch.fcgi' )
+#     File.open( dispatch_cgi, 'w' ) do |f|
+#         f << ERB.new( File.read( options.share_dir + '/lighttpd/dispatch.fcgi' ) ).result
+#     end
+#     File.chmod( 0755, dispatch_cgi )
+#     lighttpd_path = `which lighttpd 2>/dev/null; whereis lighttpd`.
+#         scan( %r!(?:^|\s)/\S+/lighttpd(?:$|\s)! ).detect { |ctl| ctl.strip!
+#             `#{ctl} -v` =~ %r!lighttpd-1\.! }
+#     abort( "** No lighttpd found, make sure it's in your PATH?" ) unless lighttpd_path
+#     `#{ lighttpd_path } #{ options.daemon ? '' : '-D' } -f #{ lighttpd_conf }`
+# when "apache2"
+#     require 'erb'
+#     a2_dir = File.join( options.share_dir, 'apache2' )
+#     a2_temp = File.join( options.temp_dir, 'apache2' )
+#     a2_path = 
+#         `which apache2ctl 2>/dev/null; whereis apache2ctl; 
+#          which apachectl 2>/dev/null; whereis apachectl`.
+#             scan( %r!\s/\S+/apache2?ctl\s! ).detect { |ctl| ctl.strip!
+#                 `#{ctl} -v` =~ %r!Apache/2\.! }
+#     abort( "** No apachectl or apache2ctl found, make sure it's in your PATH?" ) unless a2_path
+#     a2 = `#{ a2_path } -V`.scan( /-D\s*(\w+)\s*=\s*"(.+)"/ ).
+#             inject({}) { |hsh,(k,v)| hsh[k] = v; hsh }
+#     a2_conf = File.expand_path( a2['SERVER_CONFIG_FILE'], a2['HTTPD_ROOT'] )
+#     File.foreach( a2_conf ) do |line|
+#         case line
+#         when /^\s*ServerRoot\s+("(.+?)"|(\S+))/
+#             options.server_root = ($2 || $1).strip
+#         when /^\s*LoadModule\s+(\w+)\s+(\S+)/
+#             mod_name, mod_path = $1, $2
+#             options.modules ||= Hash.new do |hsh,k|
+#                 `find #{ options.server_root } -name "mod_#{ k }.*"`.
+#                     gsub( /^#{ options.server_root }\/?/, '' )
+#             end
+#             options.modules[mod_name.gsub( /_module$/, '' )] = mod_path
+#         end
+#     end
+# 
+#     files = {}
+#     Dir["#{a2_dir}/**/*"].each do |from_file|
+#         next if File.directory? from_file
+#         to_file = from_file.gsub( a2_dir, a2_temp ).
+#                             gsub( /\/dot\./, '/.' )
+#         unless File.exists? File.dirname( to_file )
+#             File.makedirs( File.dirname( to_file ) )
+#         end
+#         File.open( to_file, 'w' ) do |f|
+#             f << ERB.new( File.read( from_file ) ).result
+#         end
+#         files[to_file.gsub("#{a2_temp}/", '')] = to_file
+#     end
+#     File.chmod( 0755, files['htdocs/index.rbx'] )
+#     `#{ a2_path } -f #{ files['httpd.conf'] }`
 else
     abort "** Server `#{ options.server }' not supported."
 end
