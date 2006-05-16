@@ -34,15 +34,17 @@ class App
 
         # Load the application at the toplevel.  We want everything to work as if it was loaded from
         # the commandline by Ruby.
-        klass = nil
+        klass, klass_name = nil, nil
         begin
-            klass = eval(File.read(path), TOPLEVEL_BINDING) || Object.const_get(Object.constants.grep(/^#{title}$/i)[0])
+            eval(File.read(path), TOPLEVEL_BINDING)
+            klass_name = Object.constants.grep(/^#{title}$/i)[0]
+            klass = Object.const_get(klass_name)
             klass.create if klass.respond_to? :create
         rescue Exception => e
             p e
         end
 
-        return unless klass
+        return unless klass and klass_name
 
         # Hook up the general configuration from the object.
         model = Models::App.find_by_script(rb) || Models::App.create(:script => rb)
@@ -55,19 +57,24 @@ class App
                 METADATA.each do |f|
                     app.send("#{f}=", klass.send("default_#{f}"))
                 end
+                app.klass = klass_name
                 app.app_style = :MouseHole
                 app.path = rb
             end
         else
             App.new do |app|
                 app.mount_on = "/#{title}"
-                app.name = klass.name
-                app.klass = klass
+                app.name = klass_name
+                app.klass = klass_name
                 app.model = model
                 app.app_style = :Camping
                 app.path = rb
             end
         end
+    end
+
+    def unload
+        Object.send :remove_const, @klass
     end
 
     class << self

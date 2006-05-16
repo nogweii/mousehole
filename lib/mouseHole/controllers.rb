@@ -11,7 +11,7 @@ module MouseHole::Controllers
     end
     class RApps < R '/apps'
         def get
-            @apps = MouseHole::CENTRAL.apps.sort
+            @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.name }
             render :apps
         end
     end

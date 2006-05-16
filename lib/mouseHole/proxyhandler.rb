@@ -93,10 +93,8 @@ class ProxyHandler < Mongrel::HttpHandler
             set_via(header)
 
             page = Page.new(uri, resin.code, header)
-            if !DOMAINS.include?(env['server-name']) and @central.rewrites? page
+            if !DOMAINS.include?(env['server-name']) and @central.rewrite(page, resin)
                 puts "** Rewriting #{page.location}..."
-                page.decode(resin)
-                @central.rewrite(page)
 
                 clength = nil
                 response.status = page.status

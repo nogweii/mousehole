@@ -59,7 +59,7 @@ module MouseHole::Views
         div.scripts do
             h1 { self << "<span>Your Installed</span> Apps" } 
             ul do
-                @apps.each do |rb, app|
+                @apps.each do |app|
                     li do
                         div.title do
                             a app.name, :href => R(RApp, app.path)
