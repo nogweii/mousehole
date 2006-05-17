@@ -87,5 +87,13 @@ class Central
         @apps.values
     end
 
+    def doorblocks
+        app_list.inject([]) do |ary, app|
+            app.doorblock_classes.each do |k|
+                ary << [app, k]
+            end
+            ary
+        end
+    end
 end
 end

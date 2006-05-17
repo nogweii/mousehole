@@ -27,6 +27,22 @@ module MouseHole::Views
     def index
         div.scripts do
             p %{Welcome to MouseHole.}
+            @doorblocks.each do |app, klass, body|
+                div.doorblock do
+                    div.title do
+                        h1 klass.name.gsub(/^(.+)::(\w+)$/, '\2')
+                        if app.mount_on
+                            h2 do
+                                text "from "
+                                a app.name, :href => "..#{app.mount_on}"
+                            end
+                        else
+                            h2 "from #{app.name}"
+                        end
+                    end
+                    self << body
+                end
+            end
         end
     end
     def about
@@ -66,6 +82,15 @@ module MouseHole::Views
                             if app.mount_on
                                 span.mount { a app.mount_on, :href => "..#{app.mount_on}" }
                             end
+                        end
+                        blocks = app.doorblocks
+                        unless blocks.blank?
+                            div.blocks {
+                                strong "Blocks:"
+                                blocks.each do |b|
+                                    text " #{b}"
+                                end
+                            }
                         end
                         if app.description
                             div.description app.description

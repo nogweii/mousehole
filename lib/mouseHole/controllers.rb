@@ -1,6 +1,13 @@
 module MouseHole::Controllers
     class RIndex < R '/'
         def get
+            @doorblocks = 
+                MouseHole::CENTRAL.doorblocks.map do |app, b|
+                    controller = b.new(nil, @env, @method)
+                    controller.instance_variable_set("@app", app)
+                    controller.service
+                    [app, b, controller.body.to_s]
+                end
             render :index
         end
     end

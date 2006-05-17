@@ -29,6 +29,21 @@ class App
         rewrite(page)
     end
 
+    def doorblocks
+        if @klass
+            k = Object.const_get(@klass)
+            if k.const_defined? :MouseHole
+                k::MouseHole.constants
+            end
+        end || []
+    end
+
+    def doorblock_classes
+        doorblocks.map do |b|
+            Object.const_get(@klass)::MouseHole.const_get(b)
+        end
+    end
+
     def self.load(server, rb, path)
         title = File.basename(rb)[/^(\w+)/,1]
 
@@ -62,6 +77,17 @@ class App
                 app.path = rb
             end
         else
+            if klass.const_defined? :MouseHole
+                klass::MouseHole.constants.each do |c|
+                    klass::MouseHole.const_get(c).class_eval do
+                        def method_missing(m, *a, &b)
+                          str = m==:render ? markaview(*a, &b):eval("markaby.#{m}(*a, &b)")
+                          r(200, str)
+                        end
+                        include C, Base, Models
+                    end
+                end
+            end
             App.new do |app|
                 app.mount_on = "/#{title}"
                 app.name = klass_name

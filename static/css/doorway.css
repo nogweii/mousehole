@@ -94,3 +94,35 @@ h1 span {
     background-color: #eee;
     padding: 2px;
 }
+
+#doorway .doorblock {
+    border: solid 1px #df5;
+}
+
+#doorway .doorblock .title {
+    margin: 1px;
+    padding: 4px;
+    background-color: #efa;
+}
+
+#doorway .doorblock .title h1,
+#doorway .doorblock .title h2,
+#doorway .doorblock .title h3,
+#doorway .doorblock .title h4,
+#doorway .doorblock .title h5,
+#doorway .doorblock .title h6
+{
+    display: inline;
+}
+
+#doorway .doorblock h1 {
+    font-size: 19px;
+    color: #353;
+    text-align: left;
+}
+
+#doorway .doorblock h2 {
+    font-size: 13px;
+    color: #797;
+    text-align: left;
+}
