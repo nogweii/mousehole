@@ -20,9 +20,10 @@ require 'mouseHole/central'
 require 'mouseHole/proxyhandler'
 require 'mouseHole/app'
 
-require 'mouseHole/controllers'
+require 'mouseHole/helpers'
 require 'mouseHole/models'
 require 'mouseHole/views'
+require 'mouseHole/controllers'
 
 module MouseHole
     VERSION = "2.0"

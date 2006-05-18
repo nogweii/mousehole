@@ -95,5 +95,6 @@ class Central
             ary
         end
     end
+
 end
 end

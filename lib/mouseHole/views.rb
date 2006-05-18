@@ -1,11 +1,12 @@
 require 'redcloth'
 
 module MouseHole::Views
-    def layout
+    def doorway(meth)
         html do
             head do
                 title "MouseHole"
-                link :href => '/mouseHole/rss', :title => 'RSS', :rel => 'alternate', :type => 'application/rss+xml'
+                link :href => R(AppsRss), :title => 'Apps RSS', :rel => 'alternate', :type => 'application/rss+xml'
+                link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', :rel => 'alternate', :type => 'application/rss+xml'
                 style "@import '/static/css/doorway.css';", :type => 'text/css'
             end
             body do
@@ -18,7 +19,7 @@ module MouseHole::Views
                         li.data { a "data", :href => R(RData) }
                     end
                     div.page! do
-                        self << yield
+                        send(meth)
                     end
                 end
             end
@@ -99,6 +100,16 @@ module MouseHole::Views
                 end
             end
         end
+        div.footer! do
+            a :href => R(AppsRss) do
+                img :src => '../static/icons/feed.png'
+                text "apps feed"
+            end
+            a :href => R(MountsRss) do
+                img :src => '../static/icons/feed.png'
+                text "mounts only"
+            end
+        end
     end
     def data
         div.scripts do
@@ -108,5 +119,52 @@ module MouseHole::Views
     end
     def red str
         RedCloth.new(str.gsub(/^ +/, '')).to_html
+    end
+    # RSS feed of all user scripts.  Two good uses of this: your browser can build a bookmark list of all
+    # your user scripts from the feed (or) if you share a proxy, you can be informed concerning the user scripts
+    # people are installing.
+    def server_rss(only = nil)
+        @headers['Content-Type'] = 'text/xml'
+        rss( @body = "" ) do |c|
+            uri = URL('/')
+            uri.scheme = "http"
+
+            c.title "MouseHole User Scripts: #{ uri.host }"
+            c.link "#{ uri }"
+            c.description "A list of user script installed for the MouseHole proxy at #{ uri }"
+
+            c.item do |item|
+                item.title "MouseHole"
+                item.link "#{ uri }"
+                item.guid "#{ uri }"
+                item.dc :creator, "MouseHole"
+                item.dc :date, @started
+                item.description "The primary MouseHole configuration page."
+            end
+
+            @apps.each do |app|
+                uri = URL(RApp, app.path)
+                uri.scheme = "http"
+
+                unless only == :mounts
+                    c.item do |item|
+                        item.title "#{ app.name }: Configuration"
+                        item.link "#{ uri }"
+                        item.guid "#{ uri }"
+                        item.dc :creator, "MouseHole"
+                        item.dc :date, app.mtime
+                        item.description app.description
+                    end
+                end
+                if app.mount_on
+                    c.item do |item|
+                        uri.path = app.mount_on
+                        item.title "#{ app.name }: Mounted at #{ app.mount_on }"
+                        item.link "#{ uri }"
+                        item.guid "#{ uri }"
+                    end
+                end
+            end
+        end
     end
 end
