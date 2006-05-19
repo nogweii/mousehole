@@ -16,6 +16,9 @@ end
 class Page
     attr_accessor :location, :status, :headers, :converter, :document
     def initialize(uri, status, headers)
+        if uri.match(/[#{Regexp::quote('{}|\^[]`')}]/)
+            uri = URI.escape(uri)
+        end
         @location = URI(uri)
         @status = status
         @headers = PageHeaders[*headers]
