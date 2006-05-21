@@ -26,7 +26,11 @@ class App
 
     def do_rewrite(page)
         @document = page.document
-        rewrite(page)
+        begin
+            rewrite(page)
+        rescue Exception => e
+            ## TODO: log the exception
+        end
     end
 
     def doorblocks
@@ -49,13 +53,14 @@ class App
 
         # Load the application at the toplevel.  We want everything to work as if it was loaded from
         # the commandline by Ruby.
-        klass, klass_name = nil, nil
+        klass, klass_name, source = nil, nil, File.read(path)
         begin
-            eval(File.read(path), TOPLEVEL_BINDING)
+            eval(source, TOPLEVEL_BINDING)
             klass_name = Object.constants.grep(/^#{title}$/i)[0]
             klass = Object.const_get(klass_name)
             klass.create if klass.respond_to? :create
         rescue Exception => e
+            klass_name = title.capitalize
             p e
         end
 
@@ -150,5 +155,8 @@ class App
         end
     end
 
+end
+class BrokenApp < App
+    attr_accessor :error
 end
 end

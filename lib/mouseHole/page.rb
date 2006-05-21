@@ -48,6 +48,12 @@ class Page
         end
 
         @document = @converter.parse(self, body)
+        if @document
+            true
+        else
+            @document = body
+            false
+        end
     end 
 end
 end

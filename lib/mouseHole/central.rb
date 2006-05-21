@@ -75,9 +75,10 @@ class Central
         apps = find_rewrites(page)
         return false if apps.empty?
 
-        page.decode(resin)
-        apps.each do |app|
-            app.do_rewrite(page)
+        if page.decode(resin)
+            apps.each do |app|
+                app.do_rewrite(page)
+            end
         end
         true
     end
