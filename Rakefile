@@ -2,11 +2,11 @@ require 'rake'
 require 'rake/clean'
 require 'rake/gempackagetask'
 require 'rake/rdoctask'
+require 'rake/testtask'
 require 'fileutils'
 include FileUtils
 
 NAME = "mouseHole"
-VERSION = "2.0"
 CLEAN.include ['**/.*.sw?', '*.gem', '.config']
 
 Rake::RDocTask.new do |rdoc|
@@ -15,9 +15,16 @@ Rake::RDocTask.new do |rdoc|
     rdoc.rdoc_files.add ['README', 'COPYING', 'lib/**/*.rb', 'doc/**/*.rdoc']
 end
 
-desc "Packages up Park Place."
+desc "Packages up MouseHole 2."
 task :default => [:package]
 task :package => [:clean]
+
+desc "Run all the tests"
+Rake::TestTask.new do |t|
+    t.libs << "test"
+    t.test_files = FileList['test/test_*.rb']
+    t.verbose = true
+end
 
 spec =
     Gem::Specification.new do |s|

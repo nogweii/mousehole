@@ -5,8 +5,10 @@ module MouseHole::Views
         html do
             head do
                 title "MouseHole"
-                link :href => R(AppsRss), :title => 'Apps RSS', :rel => 'alternate', :type => 'application/rss+xml'
-                link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', :rel => 'alternate', :type => 'application/rss+xml'
+                link :href => R(AppsRss), :title => 'Apps RSS', 
+                    :rel => 'alternate', :type => 'application/rss+xml'
+                link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', 
+                    :rel => 'alternate', :type => 'application/rss+xml'
                 style "@import '/static/css/doorway.css';", :type => 'text/css'
             end
             body do
@@ -26,8 +28,7 @@ module MouseHole::Views
         end
     end
     def index
-        div.scripts do
-            p %{Welcome to MouseHole.}
+        div.main do
             @doorblocks.each do |app, klass, body|
                 div.doorblock do
                     div.title do
@@ -47,7 +48,7 @@ module MouseHole::Views
         end
     end
     def about
-        div.scripts do
+        div.main do
             red %{
                 h1. About %MouseHole 2%
 
@@ -73,47 +74,53 @@ module MouseHole::Views
         end
     end
     def apps
-        div.scripts do
-            h1 { self << "<span>Your Installed</span> Apps" } 
-            ul do
+        div.main do
+            h1 { span('Your Installed') + " Apps" } 
+            ul.apps do
                 @apps.each do |app|
-                    li do
-                        div.title do
-                            a app.name, :href => R(RApp, app.path)
-                            if app.mount_on
-                                span.mount { a app.mount_on, :href => "..#{app.mount_on}" }
-                            end
-                        end
-                        blocks = app.doorblocks
-                        unless blocks.blank?
-                            div.blocks {
-                                strong "Blocks:"
-                                blocks.each do |b|
-                                    text " #{b}"
+                    li(:style => "background: url(/static/icons/#{app.icon}.png) 0px 4px no-repeat") do
+                        if app.broken?
+                            div.title app.name
+                            div.description "#{app.error.class}: #{app.error.message}"
+                        else
+                            div.title do
+                                a app.name, :href => R(RApp, app.path)
+                                if app.mount_on
+                                    span.mount { a app.mount_on, :href => "..#{app.mount_on}" }
                                 end
-                            }
-                        end
-                        if app.description
-                            div.description app.description
+                            end
+                            blocks = app.doorblocks
+                            unless blocks.blank?
+                                div.blocks {
+                                    strong "Blocks:"
+                                    blocks.each do |b|
+                                        text " #{b}"
+                                    end
+                                }
+                            end
+                            if app.description
+                                div.description app.description
+                            end
                         end
                     end
                 end
             end
         end
         div.footer! do
+            strong "feeds: "
             a :href => R(AppsRss) do
                 img :src => '../static/icons/feed.png'
-                text "apps feed"
+                text "apps"
             end
             a :href => R(MountsRss) do
                 img :src => '../static/icons/feed.png'
-                text "mounts only"
+                text "mounts"
             end
         end
     end
     def data
-        div.scripts do
-            h1 { self << "Data <span>Viewer</span>" } 
+        div.main do
+            h1 { 'Data ' + span('Viewer') } 
             p %{Welcome to MouseHole.}
         end
     end

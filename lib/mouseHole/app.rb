@@ -16,6 +16,10 @@ class App
         @accept ||= HTML
     end
 
+    def icon; "ruby_gear" end
+
+    def broken?; false end
+
     def rewrites? page
         if @rules
             rule = @rules.detect { |rule| rule.match_uri(page.location) }
@@ -60,8 +64,11 @@ class App
             klass = Object.const_get(klass_name)
             klass.create if klass.respond_to? :create
         rescue Exception => e
-            klass_name = title.capitalize
-            p e
+            return BrokenApp.new do |app|
+                app.name, = *source.match(/\b#{title}\b/i)
+                app.path = rb
+                app.error = e
+            end
         end
 
         return unless klass and klass_name
@@ -74,11 +81,11 @@ class App
 
         if klass < App
             klass.new do |app|
+                app.name = klass_name
                 METADATA.each do |f|
                     app.send("#{f}=", klass.send("default_#{f}"))
                 end
                 app.klass = klass_name
-                app.app_style = :MouseHole
                 app.path = rb
             end
         else
@@ -93,19 +100,20 @@ class App
                     end
                 end
             end
-            App.new do |app|
+            CampingApp.new do |app|
                 app.mount_on = "/#{title}"
                 app.name = klass_name
                 app.klass = klass_name
                 app.model = model
-                app.app_style = :Camping
                 app.path = rb
             end
         end
     end
 
     def unload
-        Object.send :remove_const, @klass
+        if @klass
+            Object.send :remove_const, @klass
+        end
     end
 
     class << self
@@ -156,7 +164,11 @@ class App
     end
 
 end
+class CampingApp < App
+    def icon; "ruby" end
+end
 class BrokenApp < App
     attr_accessor :error
+    def broken?; true end
 end
 end

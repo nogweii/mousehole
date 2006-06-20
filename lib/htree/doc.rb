@@ -21,10 +21,12 @@ module HTree
       children = []
       args.each {|arg|
         arg = arg.to_node if HTree::Location === arg
+        arg.parent = self if HTree::Node === arg
         case arg
         when Array
           arg.each {|a|
             a = a.to_node if HTree::Location === a
+            a.parent = self if HTree::Node === a
             case a
             when HTree::Doc
               children.concat(a.children.reject {|c|
@@ -60,6 +62,7 @@ module HTree
         unacceptable = unacceptable.map {|uc| uc.inspect }.join(', ')
         raise TypeError, "Unacceptable document child: #{unacceptable}"
       end
+      @children.each {|c| c.parent = self}
     end 
 
     def get_subnode_internal(index) # :nodoc:

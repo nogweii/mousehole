@@ -2,6 +2,7 @@ require 'htree/doc'
 require 'htree/elem'
 require 'htree/loc'
 require 'htree/extract_text'
+require 'htree/elements'
 require 'uri'
 
 module HTree
@@ -25,6 +26,83 @@ module HTree
   end
 
   module Container::Trav
+    def containers
+      children.grep(Container::Trav)
+    end
+    def html
+      display_xml("")
+    end
+    def search(expr, &blk)
+      last = nil
+      nodes = [self]
+      done = []
+      expr = expr.to_s
+      until expr.empty?
+          expr = clean_path(expr)
+          expr.gsub!(%r!^//!, '')
+
+          case expr
+          when %r!^/?\.\.!
+              expr = $'
+              nodes.map! { |node| node.parent }
+          when %r!^[>/]!
+              expr = $'
+              nodes = Elements[*nodes.map { |node| node.containers }.flatten]
+          when %r!^\+!
+              expr = $'
+              nodes.map! do |node|
+                  siblings = node.parent.containers
+                  siblings[siblings.index(node)+1]
+              end
+              nodes.compact!
+          when %r!^~!
+              expr = $'
+              nodes.map! do |node|
+                  siblings = node.parent.containers
+                  siblings[(siblings.index(node)+1)..-1]
+              end
+              nodes.flatten!
+          when %r!^[|,]!
+              expr = " #$'"
+              nodes.shift if nodes.first == self
+              done += nodes
+              nodes = [self]
+          else
+              m = expr.match %r!^([#.]?)([a-z0-9\\*_-]*)!i
+              expr = $'
+              if m[1] == '#'
+                  oid = get_element_by_id(m[2])
+                  nodes = oid ? [oid] : []
+              else
+                  m[2] = "*" if m[2] == "" || m[1] == "."
+                  ret = []
+                  nodes.each do |node|
+                      case m[2]
+                      when '*'
+                      else
+                          ret += [*node.get_elements_by_tag_name(m[2])]
+                      end
+                  end
+                  nodes = ret
+              end
+          end
+
+          nodes, expr = Elements.filter(nodes, expr)
+      end
+      nodes = done + nodes.flatten.uniq
+      if blk
+          nodes.each(&blk)
+          self
+      else
+          Elements[*nodes]
+      end
+    end
+    alias_method :/, :search
+
+    def clean_path(path)
+      path.gsub(/^\s+|\s+$/, '')
+    end
+
     # +each_child+ iterates over each child.
     def each_child(&block) # :yields: child_node
       children.each(&block)
@@ -82,6 +160,27 @@ module HTree
         traverse_some_element(name_set, &block)
       end
       nil
+    end
+
+    def classes
+      get_attribute('class').to_s.strip.split(/\s+/)
+    end
+
+    def get_element_by_id(id)
+      traverse_all_element do |ele|
+          if eid = ele.get_attribute('id')
+              return ele if eid.to_s == id
+          end
+      end
+      nil
+    end
+
+    def get_elements_by_tag_name(*a)
+      list = Elements[]
+      traverse_element(*a.map { |tag| [tag, "{http://www.w3.org/1999/xhtml}#{tag}"] }.flatten) do |e|
+          list << e
+      end
+      list
     end
 
     def each_hyperlink_attribute

@@ -38,6 +38,7 @@ module HTree
       context = nil
       args.each {|arg|
         arg = arg.to_node if HTree::Location === arg
+        arg.parent = self if HTree::Node === arg
         case arg
         when Context
           raise ArgumentError, "multiple context" if context
@@ -47,6 +48,7 @@ module HTree
         when Array
           arg.each {|a|
             a = a.to_node if HTree::Location === a
+            a.parent = self if HTree::Node === a
             case a
             when HTree::Doc
               children.concat(a.children.reject {|c|
@@ -94,6 +96,7 @@ module HTree
       end
       @stag = stag
       @children = (children ? children.dup : []).freeze
+      @children.each {|c| c.parent = self} if @children
       @empty = children == nil && etag == nil
       @etag = etag
     end

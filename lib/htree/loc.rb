@@ -4,6 +4,8 @@ require 'htree/inspect'
 
 module HTree
   module Node
+    attr_accessor :parent
+
     # creates a location object which points to self.
     def make_loc
       self.class::Loc.new(nil, nil, self)

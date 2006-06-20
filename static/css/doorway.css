@@ -84,18 +84,39 @@ h1 span {
     border: solid 1px black;
 }
 
-#doorway .scripts {
+#doorway .main {
     padding: 10px 20px;
 }
 
-#doorway .scripts .title {
+#doorway ul.apps {
+    list-style: none;
+    margin: 0; padding: 0;
+}
+
+#doorway ul.apps li {
+    padding: 0 0 0 20px;
+    margin: 10px 0px;
+    width: 45%;
+    float: left;
+}
+
+#doorway .apps .title {
     font-size: 21px;
 }
 
-#doorway .scripts .mount {
+#doorway .apps .title a {
+    color: #369;
+}
+
+#doorway .apps .mount {
     font-size: 12px;
     background-color: #eee;
     padding: 2px;
+}
+
+#doorway .apps .description {
+    font-size: 11px;
+    color: #999;
 }
 
 #doorway .doorblock {
@@ -128,4 +149,16 @@ h1 span {
     font-size: 13px;
     color: #797;
     text-align: left;
+}
+
+#doorway #footer {
+    clear: both;
+    color: #555;
+    font-size: 10px;
+    margin: 6px 0;
+    text-align: center;
+}
+
+#doorway #footer img {
+    margin: -6px 2px -6px 9px;
 }
