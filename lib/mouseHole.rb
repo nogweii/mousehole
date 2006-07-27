@@ -1,6 +1,6 @@
 require 'rubygems'
 require 'fileutils'
-require 'htree'
+require 'hpricot'
 require 'logger'
 require 'net/http'
 require 'resolv-replace'

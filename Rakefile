@@ -7,6 +7,8 @@ require 'fileutils'
 include FileUtils
 
 NAME = "mouseHole"
+REV = File.read(".svn/entries")[/committed-rev="(\d+)"/, 1] rescue nil
+VERS = "1.9" + (REV ? ".#{REV}" : "")
 CLEAN.include ['**/.*.sw?', '*.gem', '.config']
 
 Rake::RDocTask.new do |rdoc|
@@ -29,7 +31,7 @@ end
 spec =
     Gem::Specification.new do |s|
         s.name = NAME
-        s.version = VERSION
+        s.version = VERS
         s.platform = Gem::Platform::RUBY
         s.has_rdoc = true
         s.extra_rdoc_files = [ "README" ]
@@ -38,9 +40,10 @@ spec =
         s.author = "why the lucky stiff"
         s.executables = ['mouseHole']
 
-        s.add_dependency('mongrel', '>= 0.3.12.5')
+        s.add_dependency('mongrel', '>= 0.3.13')
         s.add_dependency('camping', '>= 1.4.1')
         s.add_dependency('sqlite3-ruby', '>=1.1.0')
+        s.add_dependency('hpricot', '>=0.3')
         s.required_ruby_version = '>= 1.8.4'
 
         s.files = %w(COPYING README Rakefile) +
@@ -61,7 +64,7 @@ end
 
 task :install do
   sh %{rake package}
-  sh %{sudo gem install pkg/#{NAME}-#{VERSION}}
+  sh %{sudo gem install pkg/#{NAME}-#{VERS}}
 end
 
 task :uninstall => [:clean] do
