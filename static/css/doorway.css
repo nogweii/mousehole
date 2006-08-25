@@ -1,132 +1,136 @@
 body {
-    color: #333;
-    background-color: #ECFADE;
-    font: normal 11pt verdana, arial, sans-serif;
-    margin: 0; padding: 0;
+  color: #333;
+  background-color: #ECFADE;
+  font: normal 11pt verdana, arial, sans-serif;
+  margin: 0; padding: 0;
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: georgia, serif;
-    font-weight: normal;
-    text-align: center;
-    margin: 0;
+  font-family: georgia, serif;
+  font-weight: normal;
+  text-align: center;
+  margin: 0;
 }
 
 h1 span {
-    color: #999;
+  color: #999;
+}
+
+a img {
+  border: none;
 }
 
 /* overall background and images */
 #doorway {
-    background: white url(/static/images/doorway-tile.png);
-    width: 638px;
-    margin: 10px auto;
+  background: white url(/static/images/doorway-tile.png);
+  width: 638px;
+  margin: 10px auto;
 }
 #page {
-    background: url(/static/images/doorway-jam.png) no-repeat bottom left;
-    padding: 0px 5px 0px 5px;
+  background: url(/static/images/doorway-jam.png) no-repeat bottom left;
+  padding: 0px 5px 0px 5px;
 }
 #footer {
-    padding: 0px 5px 20px 5px;
+  padding: 0px 5px 20px 5px;
 }
 
 /* styling of doorway controls */
 #doorway .control {
-    font-size: 11px;
-    list-style: none;
-    padding: 8px;
-    margin: 0px 15px;
-    border: solid 1px #e9a;
-    background-color: #fff8f2;
+  font-size: 11px;
+  list-style: none;
+  padding: 8px;
+  margin: 0px 15px;
+  border: solid 1px #e9a;
+  background-color: #fff8f2;
 }
 
 #doorway .control .doorway {
-    background: url(/static/icons/door.png) no-repeat;
+  background: url(/static/icons/door.png) no-repeat;
 }
 
 #doorway .control .apps {
-    background: url(/static/icons/ruby.png) no-repeat;
+  background: url(/static/icons/ruby.png) no-repeat;
 }
 
 #doorway .control .data {
-    background: url(/static/icons/database.png) no-repeat;
+  background: url(/static/icons/database.png) no-repeat;
 }
 
 #doorway .control .help {
-    background: url(/static/icons/lightbulb.png) no-repeat top right;
-    float: right;
-    margin-top: -2px;
+  background: url(/static/icons/lightbulb.png) no-repeat top right;
+  float: right;
+  margin-top: -2px;
 }
 
 #doorway .control a {
-    padding: 0px 6px 0px 20px;
-    text-decoration: none;
-    color: #c30;
-    font-weight: bold;
+  padding: 0px 6px 0px 20px;
+  text-decoration: none;
+  color: #c30;
+  font-weight: bold;
 }
 
 #doorway .control a:hover {
-    color: #6a3;
+  color: #6a3;
 }
 
 #doorway .help a {
-    padding: 0px 20px 0px 6px;
+  padding: 0px 20px 0px 6px;
 }
 
 #doorway .control li {
-    display: inline;
-    margin: 2px;
-    padding: 2px;
-    /* border-right: solid 1px #ebc; */
+  display: inline;
+  margin: 2px;
+  padding: 2px;
+  /* border-right: solid 1px #ebc; */
 }
 
 #doorway .control li input {
-    border: solid 1px black;
+  border: solid 1px black;
 }
 
 #doorway .main {
-    padding: 10px 20px;
+  padding: 10px 20px;
 }
 
 #doorway ul.apps {
-    list-style: none;
-    margin: 0; padding: 0;
+  list-style: none;
+  margin: 0; padding: 0;
 }
 
 #doorway ul.apps li {
-    padding: 0 0 0 20px;
-    margin: 10px 0px;
-    width: 45%;
-    float: left;
+  padding: 0 0 0 20px;
+  margin: 10px 0px;
+  width: 45%;
+  float: left;
 }
 
 #doorway .apps .title {
-    font-size: 21px;
+  font-size: 21px;
 }
 
 #doorway .apps .title a {
-    color: #369;
+  color: #369;
 }
 
 #doorway .apps .mount {
-    font-size: 12px;
-    background-color: #eee;
-    padding: 2px;
+  font-size: 12px;
+  background-color: #eee;
+  padding: 2px;
 }
 
 #doorway .apps .description {
-    font-size: 11px;
-    color: #999;
+  font-size: 11px;
+  color: #999;
 }
 
 #doorway .doorblock {
-    border: solid 1px #df5;
+  border: solid 1px #df5;
 }
 
 #doorway .doorblock .title {
-    margin: 1px;
-    padding: 4px;
-    background-color: #efa;
+  margin: 1px;
+  padding: 4px;
+  background-color: #efa;
 }
 
 #doorway .doorblock .title h1,
@@ -136,29 +140,29 @@ h1 span {
 #doorway .doorblock .title h5,
 #doorway .doorblock .title h6
 {
-    display: inline;
+  display: inline;
 }
 
 #doorway .doorblock h1 {
-    font-size: 19px;
-    color: #353;
-    text-align: left;
+  font-size: 19px;
+  color: #353;
+  text-align: left;
 }
 
 #doorway .doorblock h2 {
-    font-size: 13px;
-    color: #797;
-    text-align: left;
+  font-size: 13px;
+  color: #797;
+  text-align: left;
 }
 
 #doorway #footer {
-    clear: both;
-    color: #555;
-    font-size: 10px;
-    margin: 6px 0;
-    text-align: center;
+  clear: both;
+  color: #555;
+  font-size: 10px;
+  margin: 6px 0;
+  text-align: center;
 }
 
 #doorway #footer img {
-    margin: -6px 2px -6px 9px;
+  margin: -6px 2px -6px 9px;
 }
