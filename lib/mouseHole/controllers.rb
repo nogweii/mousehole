@@ -33,7 +33,13 @@ module MouseHole::Controllers
   end
 
   class RApp < R '/app/(.+)'
-    def get(app)
+    def get(name)
+      @app = MouseHole::CENTRAL.find_app name
+      if @app
+        doorway :app
+      else
+        r(404, 'Not Found')
+      end
     end
   end
 
@@ -51,4 +57,12 @@ module MouseHole::Controllers
     end
   end
 
+  class Static < R '/static/(css|js|icons|images)/(.+)'
+    MIME_TYPES = {'.css' => 'text/css', '.js' => 'text/javascript', '.png' => 'image/png'}
+    def get(dir, path)
+      @headers['Content-Type'] = MIME_TYPES[path[/\.\w+$/, 0]] || "text/plain"
+      @headers['X-Sendfile'] = File.join(File.expand_path('../../../static', __FILE__), dir, path)
+    end
+  end
+  
 end

@@ -62,14 +62,18 @@ a img {
   margin-top: -2px;
 }
 
-#doorway .control a {
-  padding: 0px 6px 0px 20px;
-  text-decoration: none;
+#doorway a {
   color: #c30;
+  padding: 2px;
+}
+
+#doorway .control a {
+  text-decoration: none;
+  padding: 0px 6px 0px 20px;
   font-weight: bold;
 }
 
-#doorway .control a:hover {
+#doorway a:hover {
   color: #6a3;
 }
 
@@ -98,29 +102,46 @@ a img {
 }
 
 #doorway ul.apps li {
-  padding: 0 0 0 20px;
+  padding: 0 10px 0 20px;
   margin: 10px 0px;
-  width: 45%;
+  width: 27%;
   float: left;
 }
 
-#doorway .apps .title {
-  font-size: 21px;
-}
-
-#doorway .apps .title a {
-  color: #369;
-}
-
-#doorway .apps .mount {
-  font-size: 12px;
-  background-color: #eee;
+#doorway .apps h2 {
+  float: left;
+  font: normal 19px verdana, arial, sans-serif;
+  text-align: left;
   padding: 2px;
 }
 
+#doorway .apps h2 a {
+  color: #08E;
+}
+
+#doorway .apps h2 a:hover {
+  background-color: #F30;
+  color: white;
+  text-decoration: none;
+}
+
+#doorway .apps .mount {
+  float: left;
+  font-size: 9px;
+  padding: 0 4px 4px 4px;
+  margin-left: 4px;
+  border-left: solid 1px #ccc;
+}
+
+#doorway .apps .mount a {
+  font-size: 14px;
+}
+
 #doorway .apps .description {
+  clear: both;
   font-size: 11px;
   color: #999;
+  padding: 2px;
 }
 
 #doorway .doorblock {
@@ -159,8 +180,10 @@ a img {
   clear: both;
   color: #555;
   font-size: 10px;
-  margin: 6px 0;
+  margin: 6px 6px;
   text-align: center;
+  padding-top: 6px;
+  border-top: solid 1px #eec;
 }
 
 #doorway #footer img {

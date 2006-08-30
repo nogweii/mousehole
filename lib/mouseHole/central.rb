@@ -90,6 +90,10 @@ module MouseHole
       @apps.values
     end
 
+    def find_app name
+      @apps[name]
+    end
+
     def doorblocks
       app_list.inject([]) do |ary, app|
         app.doorblock_classes.each do |k|

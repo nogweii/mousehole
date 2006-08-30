@@ -10,11 +10,11 @@ module MouseHole::Views
           :rel => 'alternate', :type => 'application/rss+xml'
         link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', 
           :rel => 'alternate', :type => 'application/rss+xml'
-        style "@import '/static/css/doorway.css';", :type => 'text/css'
+        style "@import '#{R(Static, 'css', 'doorway.css')}';", :type => 'text/css'
       end
       body do
         div.doorway! do
-          img :src => '../static/images/doorway.png'
+          img :src => R(Static, 'images', 'doorway.png')
           ul.control do
             li.help { a "about", :href => R(RAbout) }
             li.doorway { a "doorway", :href => R(RIndex) }
@@ -34,7 +34,7 @@ module MouseHole::Views
       @doorblocks.each do |app, klass, body|
         div.doorblock do
           div.title do
-            h1 klass.name.gsub(/^(.+)::(\w+)$/, '\2')
+            h1 app.name
             if app.mount_on
               h2 do
                 text "from "
@@ -82,15 +82,18 @@ module MouseHole::Views
       h1 { "#{span('Your Installed')} Apps" } 
       ul.apps do
         @apps.each do |app|
-          li(:style => "background: url(/static/icons/#{app.icon}.png) 0px 4px no-repeat") do
+          li(:style => "background: url(#{R(Static, 'icons', app.icon)}.png) 0px 4px no-repeat") do
             if app.broken?
               div.title app.name
               div.description "#{app.error.class}: #{app.error.message}"
             else
               div.title do
-                a app.name, :href => R(RApp, app.path)
+                h2 { a app.name, :href => R(RApp, app.path) }
                 if app.mount_on
-                  span.mount { a app.mount_on, :href => "..#{app.mount_on}" }
+                  div.mount do
+                    "mounted on:" + br +
+                      a(app.mount_on, :href => "..#{app.mount_on}")
+                  end
                 end
               end
               blocks = app.doorblocks
@@ -113,12 +116,21 @@ module MouseHole::Views
     div.footer! do
       strong "feeds: "
       a :href => R(AppsRss) do
-        img :src => '../static/icons/feed.png'
+        img :src => R(Static, 'icons', 'feed.png')
         text "apps"
       end
       a :href => R(MountsRss) do
-        img :src => '../static/icons/feed.png'
+        img :src => R(Static, 'icons', 'feed.png')
         text "mounts"
+      end
+    end
+  end
+
+  def app
+    div.main do
+      h1 { "#{span(@app.name)} Setup" }
+      if @app.description
+        div.description @app.description
       end
     end
   end
