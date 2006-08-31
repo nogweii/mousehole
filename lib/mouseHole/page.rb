@@ -58,8 +58,15 @@ module MouseHole
       end
     end 
 
-    def method_missing(*a, &b)
-      Markaby::Builder.new({},self){send(*a,&b)}.to_s
+    class ElementNotFound < StandardError; end
+
+    def method_missing(ele, &b)
+      node = @document.at(ele)
+      if node
+        node.inner_html = Markaby::Builder.new({},self,&b).to_s
+      else
+        raise ElementNotFound, "No `#{ele}' found on the page."
+      end
     end
 
   end
