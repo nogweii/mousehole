@@ -35,6 +35,7 @@ module MouseHole
         rewrite(page)
       rescue Exception => e
         ## TODO: log the exception
+        puts "[#{self.name}] #{e.class}: #{e.message}"
       end
     end
 

@@ -57,6 +57,11 @@ module MouseHole
         false
       end
     end 
+
+    def method_missing(*a, &b)
+      Markaby::Builder.new({},self){send(*a,&b)}.to_s
+    end
+
   end
 
 end
