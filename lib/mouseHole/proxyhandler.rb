@@ -110,7 +110,7 @@ module MouseHole
             end
           end
 
-          body = page.document.to_s
+          body = page.body
           response.send_status(body.length)
           response.send_header
           response.write(body)

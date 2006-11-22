@@ -18,8 +18,12 @@ module MouseHole::Converters
         parse_xhtml(body, true, charset)
       end
 
-      def output(document, page)
-        page.body = document.to_s
+      def output(document)
+        if document.respond_to? :to_original_html
+          document.to_original_html
+        else
+          document.to_s
+        end
       end
 
       def parse_xhtml(str, full_doc = false, charset = nil)

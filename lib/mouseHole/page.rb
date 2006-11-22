@@ -58,6 +58,10 @@ module MouseHole
       end
     end 
 
+    def body
+      @converter.output(document)
+    end
+
     class ElementNotFound < StandardError; end
 
     def method_missing(ele, &b)
