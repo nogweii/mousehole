@@ -59,7 +59,11 @@ module MouseHole
     end 
 
     def body
-      @converter.output(document)
+      if @converter
+        @converter.output(document)
+      else
+        document.to_s
+      end
     end
 
     class ElementNotFound < StandardError; end

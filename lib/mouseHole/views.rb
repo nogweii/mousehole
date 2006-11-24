@@ -34,14 +34,14 @@ module MouseHole::Views
       @doorblocks.each do |app, klass, body|
         div.doorblock do
           div.title do
-            h1 app.name
+            h1 app.title
             if app.mount_on
               h2 do
                 text "from "
-                a app.name, :href => "..#{app.mount_on}"
+                a app.title, :href => "..#{app.mount_on}"
               end
             else
-              h2 "from #{app.name}"
+              h2 "from #{app.title}"
             end
           end
           self << body
@@ -84,11 +84,11 @@ module MouseHole::Views
         @apps.each do |app|
           li(:style => "background: url(#{R(Static, 'icons', app.icon)}.png) 0px 4px no-repeat") do
             if app.broken?
-              div.title app.name
+              div.title app.title
               div.description "#{app.error.class}: #{app.error.message}"
             else
               div.title do
-                h2 { a app.name, :href => R(RApp, app.path) }
+                h2 { a app.title, :href => R(RApp, app.path) }
                 if app.mount_on
                   div.mount do
                     "mounted on:" + br +
@@ -128,7 +128,7 @@ module MouseHole::Views
 
   def app
     div.main do
-      h1 { "#{span(@app.name)} Setup" }
+      h1 { "#{span(@app.title)} Setup" }
       if @app.description
         div.description @app.description
       end
@@ -174,7 +174,7 @@ module MouseHole::Views
 
         unless only == :mounts
           c.item do |item|
-            item.title "#{ app.name }: Configuration"
+            item.title "#{ app.title }: Configuration"
             item.link "#{ uri }"
             item.guid "#{ uri }"
             item.dc :creator, "MouseHole"
@@ -185,7 +185,7 @@ module MouseHole::Views
         if app.mount_on
           c.item do |item|
             uri.path = app.mount_on
-            item.title "#{ app.name }: Mounted at #{ app.mount_on }"
+            item.title "#{ app.title }: Mounted at #{ app.mount_on }"
             item.link "#{ uri }"
             item.guid "#{ uri }"
           end

@@ -31,11 +31,7 @@ end
 
 module MouseHole
 
-  class ProxyHandler < Mongrel::HttpHandler
-
-    def initialize(central)
-      @central = central
-    end
+  module HandlerMixin
 
     def proxy_auth(req, res)
       if proc = @config[:ProxyAuthProc]
@@ -72,7 +68,26 @@ module MouseHole
       @config[:ProxyURI]
     end
 
-    def process(request, response)
+    def output(page, response)
+      clength = nil
+      response.status = page.status
+      page.headers.each do |k, v|
+        if k =~ /^CONTENT-LENGTH$/i
+        clength = v.to_i
+        else
+        [*v].each do |vi|
+          response.header[k] = vi
+        end
+        end
+      end
+
+      body = page.body
+      response.send_status(body.length)
+      response.send_header
+      response.write(body)
+    end
+
+    def page_prep(request)
       reqh, env = {}, {}
       request.params.each do |k, v|
         k = k.downcase.gsub('_','-')
@@ -83,12 +98,47 @@ module MouseHole
       end
       path = env['path-info'].gsub("//#{env['server-name']}",'')
       uri = "http:#{env['path-info']}"
+      return uri, path, reqh, env
+    end
+  end
+
+  class MountHandler < Mongrel::HttpHandler
+    include HandlerMixin
+
+    def initialize(block)
+      @block = block
+    end
+
+    def process(request, response)
+      uri, path, reqh, env = page_prep(request)
+      header = []
+      choose_header(reqh, header)
+      page = Page.new(uri, 404, header)
+      @block.call(page)
+      output(page, response)
+    end
+
+  end
+
+  class ProxyHandler < Mongrel::HttpHandler
+    include HandlerMixin
+
+    def initialize(central)
+      @central = central
+    end
+
+    def process(request, response)
+      uri, path, reqh, env = page_prep(request)
         
       header = []
       choose_header(reqh, header)
       set_via(header)
 
-      blk = proc do |resin|
+      http = Net::HTTP.new(env['server-name'], env['server-port'], @central.options.proxy_host, @central.options.proxy_port)
+      http.open_timeout = 10
+      http.read_timeout = 20
+      reqm = Net::HTTP.const_get(env['request-method'].capitalize)
+      resin = http.request(reqm.new(path, header), reqm::REQUEST_HAS_BODY ? request.body : nil) do |resin|
         header = []
         # @logger.debug("opened: http:#{env['path-info']}")
         choose_header(resin, header)
@@ -97,23 +147,7 @@ module MouseHole
         page = Page.new(uri, resin.code, header)
         if !DOMAINS.include?(env['server-name']) and @central.rewrite(page, resin)
           puts "** Rewriting #{page.location}..."
-
-          clength = nil
-          response.status = page.status
-          page.headers.each do |k, v|
-            if k =~ /^CONTENT-LENGTH$/i
-            clength = v.to_i
-            else
-            [*v].each do |vi|
-              response.header[k] = vi
-            end
-            end
-          end
-
-          body = page.body
-          response.send_status(body.length)
-          response.send_header
-          response.write(body)
+          output(page, response)
         else
           response.status = resin.code.to_i
           header.each { |k, v| response.header[k] = v }
@@ -125,14 +159,6 @@ module MouseHole
           end
         end
       end
-
-      # @logger.info("start #{env['request-method']} http:#{env['path-info']}")
-      http = Net::HTTP.new(env['server-name'], env['server-port'], @central.options.proxy_host, @central.options.proxy_port)
-      http.open_timeout = 10
-      http.read_timeout = 20
-      reqm = Net::HTTP.const_get(env['request-method'].capitalize)
-      resin = http.request(reqm.new(path, header), reqm::REQUEST_HAS_BODY ? request.body : nil, &blk)
-      # @logger.info("end #{env['request-method']} http:#{env['path-info']}")
     end
 
   end

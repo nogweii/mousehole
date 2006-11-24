@@ -21,7 +21,7 @@ module MouseHole::Controllers
 
   class RApps < R '/apps'
     def get
-      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.name }
+      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.title }
       doorway :apps
     end
   end
@@ -45,14 +45,14 @@ module MouseHole::Controllers
 
   class AppsRss < R '/apps.rss'
     def get
-      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.name }
+      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.title }
       server_rss
     end
   end
 
   class MountsRss < R '/mounts.rss'
     def get
-      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.name }
+      @apps = MouseHole::CENTRAL.app_list.sort_by { |app| app.title }
       server_rss :mounts
     end
   end

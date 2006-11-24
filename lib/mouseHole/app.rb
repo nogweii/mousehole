@@ -5,7 +5,7 @@ module MouseHole
     include REXML
     include Converters
 
-    METADATA = [:name, :namespace, :description, :version, :rules, :accept]
+    METADATA = [:title, :namespace, :description, :version, :rules, :handlers, :accept]
 
     attr_reader :token
     attr_accessor :document, :path, :mount_on, :mtime, :active,
@@ -35,7 +35,7 @@ module MouseHole
         rewrite(page)
       rescue Exception => e
         ## TODO: log the exception
-        puts "[#{self.name}] #{e.class}: #{e.message}"
+        puts "[#{self.title}] #{e.class}: #{e.message}"
       end
     end
 
@@ -67,7 +67,7 @@ module MouseHole
         klass.create if klass.respond_to? :create
       rescue Exception => e
         return BrokenApp.new do |app|
-          app.name, = *source.match(/\b#{title}\b/i)
+          app.title, = *source.match(/\b#{title}\b/i)
           app.path = rb
           app.error = e
         end
@@ -83,12 +83,18 @@ module MouseHole
 
       if klass < App
         klass.new do |app|
-          app.name = klass_name
+          app.title = klass_name
           METADATA.each do |f|
             app.send("#{f}=", klass.send("default_#{f}"))
           end
           app.klass = klass_name
           app.path = rb
+          if app.handlers
+            app.handlers.each do |h_is, h_name, h_blk|
+              next unless h_is == :mount
+              server.uri "/#{h_name}", :handler => h_blk
+            end
+          end
         end
       else
         if klass.const_defined? :MouseHole
@@ -104,7 +110,7 @@ module MouseHole
         end
         CampingApp.new do |app|
           app.mount_on = "/#{title}"
-          app.name = klass_name
+          app.title = klass_name
           app.klass = klass_name
           app.model = model
           app.path = rb
@@ -124,6 +130,10 @@ module MouseHole
         define_method(f) do |str|
           instance_variable_set("@default_#{f}", str)
         end
+      end
+
+      def mount(path, &b)
+        (@default_handlers ||= []) << [:mount, path, MouseHole::MountHandler.new(b)]
       end
 
       [:url].each do |rt|
