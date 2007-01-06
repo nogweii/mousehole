@@ -173,6 +173,9 @@ module MouseHole
           end
         end
       end
+      def to_s
+        "#{@action} #{@expr}"
+      end
     end
 
   end
@@ -183,6 +186,7 @@ module MouseHole
 
   class BrokenApp < App
     attr_accessor :error
+    def icon; "broken" end
     def broken?; true end
   end
 

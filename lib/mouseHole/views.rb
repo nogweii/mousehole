@@ -13,7 +13,7 @@ module MouseHole::Views
         style "@import '#{R(Static, 'css', 'doorway.css')}';", :type => 'text/css'
       end
       body do
-        div.doorway! do
+        div.mousehole! do
           img :src => R(Static, 'images', 'doorway.png')
           ul.control do
             li.help { a "about", :href => R(RAbout) }
@@ -22,7 +22,9 @@ module MouseHole::Views
             li.data { a "data", :href => R(RData) }
           end
           div.page! do
-            send(meth)
+            div.send("#{meth}!") do
+              send(meth)
+            end
           end
         end
       end
@@ -82,10 +84,10 @@ module MouseHole::Views
       h1 { "#{span('Your Installed')} Apps" } 
       ul.apps do
         @apps.each do |app|
-          li(:style => "background: url(#{R(Static, 'icons', app.icon)}.png) 0px 4px no-repeat") do
+          li :class => "app-#{app.icon}" do
             if app.broken?
-              div.title app.title
-              div.description "#{app.error.class}: #{app.error.message}"
+              h2.broken { a app.title, :href => R(RApp, app.path) }
+              div.description "This app is broken."
             else
               div.title do
                 h2 { a app.title, :href => R(RApp, app.path) }
@@ -129,9 +131,45 @@ module MouseHole::Views
   def app
     div.main do
       h1 { "#{span(@app.title)} Setup" }
-      if @app.description
-        div.description @app.description
+      case @app
+      when MouseHole::BrokenApp
+        div.description do
+          "This app is broken.  The exception causing the problem is listed below:"
+        end
+        div.exception do
+          h2 "#{@app.error.class}"
+          self << h3(@app.error.message).gsub(/\n/, '<br />')
+          ul.backtrace do
+            @app.error.backtrace.each do |bt|
+              li "from #{bt}"
+            end
+          end
+        end
+      when MouseHole::CampingApp
+      when MouseHole::App
+        div.config do
+          div.description @app.description if @app.description
+          ul do
+            li do
+              input :type => 'checkbox'
+              span "Enabled"
+            end
+          end
+        end
+        div.rules do
+          h2 "Rules"
+          select :size => 5 do
+            @app.rules.each do |rule|
+              option rule
+            end
+          end
+          div.submits do
+            input :type => 'button', :value => 'Add...'
+            input :type => 'button', :value => 'Remove'
+          end
+        end
       end
+      p "Originally installed by hand."
     end
   end
 

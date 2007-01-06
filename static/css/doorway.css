@@ -21,7 +21,7 @@ a img {
 }
 
 /* overall background and images */
-#doorway {
+#mousehole {
   background: white url(/static/images/doorway-tile.png);
   width: 638px;
   margin: 10px auto;
@@ -35,7 +35,7 @@ a img {
 }
 
 /* styling of doorway controls */
-#doorway .control {
+#mousehole .control {
   font-size: 11px;
   list-style: none;
   padding: 8px;
@@ -44,88 +44,105 @@ a img {
   background-color: #fff8f2;
 }
 
-#doorway .control .doorway {
+#mousehole .control .doorway {
   background: url(/static/icons/door.png) no-repeat;
 }
 
-#doorway .control .apps {
+#mousehole .control .apps {
   background: url(/static/icons/ruby.png) no-repeat;
 }
 
-#doorway .control .data {
+#mousehole .control .data {
   background: url(/static/icons/database.png) no-repeat;
 }
 
-#doorway .control .help {
+#mousehole .control .help {
   background: url(/static/icons/lightbulb.png) no-repeat top right;
   float: right;
   margin-top: -2px;
 }
 
-#doorway a {
+#mousehole a {
   color: #c30;
   padding: 2px;
 }
 
-#doorway .control a {
+#mousehole .control a {
   text-decoration: none;
   padding: 0px 6px 0px 20px;
   font-weight: bold;
 }
 
-#doorway a:hover {
+#mousehole a:hover {
   color: #6a3;
 }
 
-#doorway .help a {
+#mousehole .help a {
   padding: 0px 20px 0px 6px;
 }
 
-#doorway .control li {
+#mousehole .control li {
   display: inline;
   margin: 2px;
   padding: 2px;
   /* border-right: solid 1px #ebc; */
 }
 
-#doorway .control li input {
+#mousehole .control li input {
   border: solid 1px black;
 }
 
-#doorway .main {
+#mousehole .main {
   padding: 10px 20px;
 }
 
-#doorway ul.apps {
+#mousehole ul.apps {
   list-style: none;
   margin: 0; padding: 0;
 }
 
-#doorway ul.apps li {
+#mousehole ul.apps li {
   padding: 0 10px 0 20px;
-  margin: 10px 0px;
-  width: 27%;
+  margin: 6px 0px;
+  width: 44%;
   float: left;
 }
 
-#doorway .apps h2 {
+#mousehole .apps h2 {
   float: left;
   font: normal 19px verdana, arial, sans-serif;
   text-align: left;
   padding: 2px;
 }
 
-#doorway .apps h2 a {
+#mousehole .app-broken {
+  background: url(../icons/broken.png) 0px 4px no-repeat;
+}
+
+#mousehole .app-ruby {
+  background: url(../icons/ruby.png) 0px 4px no-repeat;
+}
+
+#mousehole .app-ruby_gear {
+  background: url(../icons/ruby_gear.png) 0px 4px no-repeat;
+}
+
+#mousehole .apps h2 a {
   color: #08E;
 }
 
-#doorway .apps h2 a:hover {
+#mousehole .apps h2.broken a {
+  color: black;
+  background-color: #eee;
+}
+
+#mousehole .apps h2 a:hover {
   background-color: #F30;
   color: white;
   text-decoration: none;
 }
 
-#doorway .apps .mount {
+#mousehole .apps .mount {
   float: left;
   font-size: 9px;
   padding: 0 4px 4px 4px;
@@ -133,50 +150,50 @@ a img {
   border-left: solid 1px #ccc;
 }
 
-#doorway .apps .mount a {
+#mousehole .apps .mount a {
   font-size: 14px;
 }
 
-#doorway .apps .description {
+#mousehole .apps .description {
   clear: both;
   font-size: 11px;
   color: #999;
   padding: 2px;
 }
 
-#doorway .doorblock {
+#mousehole .doorblock {
   border: solid 1px #df5;
 }
 
-#doorway .doorblock .title {
+#mousehole .doorblock .title {
   margin: 1px;
   padding: 4px;
   background-color: #efa;
 }
 
-#doorway .doorblock .title h1,
-#doorway .doorblock .title h2,
-#doorway .doorblock .title h3,
-#doorway .doorblock .title h4,
-#doorway .doorblock .title h5,
-#doorway .doorblock .title h6
+#mousehole .doorblock .title h1,
+#mousehole .doorblock .title h2,
+#mousehole .doorblock .title h3,
+#mousehole .doorblock .title h4,
+#mousehole .doorblock .title h5,
+#mousehole .doorblock .title h6
 {
   display: inline;
 }
 
-#doorway .doorblock h1 {
+#mousehole .doorblock h1 {
   font-size: 19px;
   color: #353;
   text-align: left;
 }
 
-#doorway .doorblock h2 {
+#mousehole .doorblock h2 {
   font-size: 13px;
   color: #797;
   text-align: left;
 }
 
-#doorway #footer {
+#mousehole #footer {
   clear: both;
   color: #555;
   font-size: 10px;
@@ -186,6 +203,69 @@ a img {
   border-top: solid 1px #eec;
 }
 
-#doorway #footer img {
+#mousehole #footer img {
   margin: -6px 2px -6px 9px;
+}
+
+/* app editor */
+#mousehole .config {
+  width: 44%;
+  float: left;
+}
+
+#mousehole div.rules {
+  width: 54%;
+  float: left;
+  margin: 4px;
+}
+
+#mousehole div.rules h2 {
+  font-size: 14px;
+  color: green;
+  font-weight: bold;
+}
+
+#mousehole div.rules select {
+  width: 100%;
+}
+
+#mousehole #app .submits {
+  text-align: center;
+}
+
+#mousehole #app .submits input {
+  margin: 3px;
+}
+
+#mousehole #app .description {
+  color: #666;
+  clear: both;
+  font-size: 14px;
+  padding: 6px;
+}
+
+#mousehole #app .config ul {
+  list-style: none;
+}
+
+#mousehole #app .exception {
+  background-color: #f5f5f5;
+  color: #777;
+  padding: 9px;
+}
+
+#mousehole #app .exception h2 {
+  text-align: left;
+  color: #555;
+}
+
+#mousehole #app .exception h3 {
+  font-size: 14px;
+  text-align: left;
+}
+
+#mousehole #app .exception ul {
+  font-size: 12px;
+  list-style: none;
+  margin: 0;
 }
