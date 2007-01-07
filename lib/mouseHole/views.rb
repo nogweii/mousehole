@@ -11,6 +11,7 @@ module MouseHole::Views
         link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', 
           :rel => 'alternate', :type => 'application/rss+xml'
         script :type => "text/javascript", :src => R(Static, 'js', 'jquery.js')
+        script :type => "text/javascript", :src => R(Static, 'js', 'interface.js')
         style "@import '#{R(Static, 'css', 'doorway.css')}';", :type => 'text/css'
       end
       body do
@@ -46,21 +47,43 @@ module MouseHole::Views
   def index
     div.main do
       if @doorblocks.any?
-        @doorblocks.each do |app, klass, body|
-          div.doorblock do
-            div.title do
-              h1 klass.title
-              if app.mount_on
-                h2 do
-                  text "from "
-                  a app.title, :href => "..#{app.mount_on}"
+        ol.doorblocks do
+          @doorblocks.each do |app, klass, body|
+            li.blocksort do
+              div.block do
+                div.title do
+                  h1 klass.title
+                  if app.mount_on
+                    h2 do
+                      text "from "
+                      a app.title, :href => "..#{app.mount_on}"
+                    end
+                  else
+                    h2 "from #{app.title}"
+                  end
                 end
-              else
-                h2 "from #{app.title}"
+                div.inside do
+                  self << body
+                end
               end
             end
-            self << body
           end
+        end
+        script(:language => 'javascript') do
+        %q{
+          $(document).ready(function(){
+            $('ol.doorblocks').Sortable({
+              accept: 'blocksort',
+              activeclass: 'blockactive',
+              hoverclass: 'blockhover',
+              helperclass: 'sorthelper',
+              opacity: 0.8,
+              fx:       200,
+              revert: true,
+              tolerance: 'intersect'
+            });
+          });
+        }
         end
       else
         p "None of your installed apps have any doorblocks."

@@ -34,6 +34,59 @@ a img {
   padding: 0px 5px 20px 5px;
 }
 
+/* appearance of doorblocks */
+.block {
+  display: block;
+  border: solid 1px #df5;
+  margin: 4px 0; padding: 0;
+}
+
+.block .title {
+  margin: 1px;
+  padding: 4px;
+  background-color: #efa;
+}
+
+.block .inside {
+  font-size: .8em;
+  margin: 1px;
+  padding: 5px;
+  background-color: #fff7ff;
+}
+
+.block .inside h1,
+.block .inside h2,
+.block .inside h3, 
+.block .inside h4,
+.block .inside h5,
+.block .inside h6 {
+  font-family: verdana, arial, sans-serif;
+}
+
+.block p {
+  margin: 6px 0;
+}
+
+.block .title h1 {
+  display: inline;
+  font-size: 19px;
+  color: #353;
+  text-align: left;
+  margin-right: 6px;
+}
+
+.block .title h2 {
+  display: inline;
+  font-size: 13px;
+  color: #797;
+  text-align: left;
+}
+
+#mouseHole .block .inside a {
+  color: #03c;
+  padding: 2px;
+}
+
 /* styling of doorway controls */
 #mousehole .control {
   font-size: 11px;
@@ -161,36 +214,9 @@ a img {
   padding: 2px;
 }
 
-#mousehole .doorblock {
-  border: solid 1px #df5;
-}
-
-#mousehole .doorblock .title {
-  margin: 1px;
-  padding: 4px;
-  background-color: #efa;
-}
-
-#mousehole .doorblock .title h1,
-#mousehole .doorblock .title h2,
-#mousehole .doorblock .title h3,
-#mousehole .doorblock .title h4,
-#mousehole .doorblock .title h5,
-#mousehole .doorblock .title h6
-{
-  display: inline;
-}
-
-#mousehole .doorblock h1 {
-  font-size: 19px;
-  color: #353;
-  text-align: left;
-}
-
-#mousehole .doorblock h2 {
-  font-size: 13px;
-  color: #797;
-  text-align: left;
+#mousehole ol.doorblocks {
+  list-style: none;
+  margin: 0; padding: 0;
 }
 
 #mousehole #footer {
@@ -227,6 +253,14 @@ a img {
 
 #mousehole div.rules select {
   width: 100%;
+}
+
+#mousehole div.blocks {
+  clear: both;
+  font-size: .6em;
+  background-color: #eee;
+  color: #666;
+  padding: 4px;
 }
 
 #mousehole #app .submits {

@@ -109,6 +109,19 @@ module MouseHole
             end
           end
         end
+        klass.meta_eval do
+          alias_method :__run__, :run
+          define_method :run do |*a|
+            x = __run__(*a)
+            if x.respond_to? :body
+              doc = Hpricot(x.body)
+              (doc/:head).append("<style type='text/css'>@import '/doorway/static/css/mounts.css';</style>")
+              (doc/:body).prepend("<div id='mh2'><b><a href='/'>MouseHole</a></b> // You are using <b>#{klass_name}</b> (<a href='/doorway/app/#{rb}'>edit</a>)</div>")
+              x.body = doc.to_original_html
+            end
+            x
+          end
+        end
         CampingApp.new do |app|
           app.mount_on = "/#{title}"
           app.title = klass_name
