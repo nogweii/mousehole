@@ -4,7 +4,8 @@ module MouseHole::Controllers
     def get
       @doorblocks = 
         MouseHole::CENTRAL.doorblocks.map do |app, b|
-          controller = b.new(nil, @env, @method)
+          paths = {'SCRIPT_NAME' => File.join(R(RIndex), app.mount_on)}
+          controller = b.new(nil, @env.merge(paths), @method)
           controller.instance_variable_set("@app", app)
           controller.service
           [app, b, controller.body.to_s]

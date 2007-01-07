@@ -78,7 +78,8 @@ module MouseHole
       # Hook up the general configuration from the object.
       model = Models::App.find_by_script(rb) || Models::App.create(:script => rb)
       if klass.respond_to? :run
-        server.uri "/#{title}", :handler => Mongrel::Camping::CampingHandler.new(klass)
+        server.unregister "/#{title}"
+        server.register "/#{title}", Mongrel::Camping::CampingHandler.new(klass)
       end
 
       if klass < App
@@ -92,7 +93,8 @@ module MouseHole
           if app.handlers
             app.handlers.each do |h_is, h_name, h_blk|
               next unless h_is == :mount
-              server.uri "/#{h_name}", :handler => h_blk
+              server.unregister "/#{h_name}"
+              server.register "/#{h_name}", h_blk
             end
           end
         end
@@ -100,9 +102,8 @@ module MouseHole
         if klass.const_defined? :MouseHole
           klass::MouseHole.constants.each do |c|
             klass::MouseHole.const_get(c).class_eval do
-              def method_missing(m, *a, &b)
-                str = m==:render ? markaview(*a, &b):eval("markaby.#{m}(*a, &b)")
-                r(200, str)
+              def self.title
+                name[/::([^:]+?)$/, 1]
               end
               include C, Base, Models
             end

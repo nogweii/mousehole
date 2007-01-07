@@ -10,6 +10,7 @@ module MouseHole::Views
           :rel => 'alternate', :type => 'application/rss+xml'
         link :href => R(MountsRss), :title => 'Apps (Mounts Only) RSS', 
           :rel => 'alternate', :type => 'application/rss+xml'
+        script :type => "text/javascript", :src => R(Static, 'js', 'jquery.js')
         style "@import '#{R(Static, 'css', 'doorway.css')}';", :type => 'text/css'
       end
       body do
@@ -25,6 +26,17 @@ module MouseHole::Views
             div.send("#{meth}!") do
               send(meth)
             end
+            div.footer! do
+              strong "feeds: "
+              a :href => R(AppsRss) do
+                img :src => R(Static, 'icons', 'feed.png')
+                text "apps"
+              end
+              a :href => R(MountsRss) do
+                img :src => R(Static, 'icons', 'feed.png')
+                text "mounts"
+              end
+            end
           end
         end
       end
@@ -33,21 +45,25 @@ module MouseHole::Views
 
   def index
     div.main do
-      @doorblocks.each do |app, klass, body|
-        div.doorblock do
-          div.title do
-            h1 app.title
-            if app.mount_on
-              h2 do
-                text "from "
-                a app.title, :href => "..#{app.mount_on}"
+      if @doorblocks.any?
+        @doorblocks.each do |app, klass, body|
+          div.doorblock do
+            div.title do
+              h1 klass.title
+              if app.mount_on
+                h2 do
+                  text "from "
+                  a app.title, :href => "..#{app.mount_on}"
+                end
+              else
+                h2 "from #{app.title}"
               end
-            else
-              h2 "from #{app.title}"
             end
+            self << body
           end
-          self << body
         end
+      else
+        p "None of your installed apps have any doorblocks."
       end
     end
   end
@@ -68,7 +84,7 @@ module MouseHole::Views
         MouseHole was first conceived by the readers of RedHanded, a blog exploring the fringes of the Ruby
         programming language.  First it was called Hoodlum, then it was called Wonderland.  We traded
         code back and forth and got it hacked together.  
-        During the end of "August 2005":http://redhanded.hobix.com//2005/08/.
+        During the end of "August 2005":http://redhanded.hobix.com/2005/08/.
 
         Right now, MouseHole is under the care of "why the lucky stiff":http://whytheluckystiff.net/.
         It's a very small operation and you are welcome to come hop aboard!
@@ -113,17 +129,6 @@ module MouseHole::Views
             end
           end
         end
-      end
-    end
-    div.footer! do
-      strong "feeds: "
-      a :href => R(AppsRss) do
-        img :src => R(Static, 'icons', 'feed.png')
-        text "apps"
-      end
-      a :href => R(MountsRss) do
-        img :src => R(Static, 'icons', 'feed.png')
-        text "mounts"
       end
     end
   end

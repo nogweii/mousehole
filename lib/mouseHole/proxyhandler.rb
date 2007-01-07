@@ -1,7 +1,16 @@
 require 'mongrel'
 require 'mouseHole/page'
 
-Mongrel::Const.const_set :REQUEST_PATH, "REQUEST_URI".freeze
+# Mongrel::Const.const_set :REQUEST_PATH, "REQUEST_URI".freeze
+
+class Mongrel::HttpParser
+  alias_method :__execute__, :execute
+  def execute(params, data, nparsed)
+    nparsed = __execute__(params, data, nparsed)
+    params['REQUEST_PATH'] = params['REQUEST_URI'] if params['REQUEST_PATH'].nil?
+    nparsed
+  end
+end
 
 class Mongrel::HttpResponse
   def send_plain_status

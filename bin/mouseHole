@@ -117,7 +117,7 @@ when "mongrel"
     end
     config = Mongrel::Configurator.new :host => options.host do
         listener :port => options.port do
-            MouseHole::CENTRAL = MouseHole::Central.new(self, options)
+            MouseHole::CENTRAL = MouseHole::Central.new(@listener, options)
             uri 'http:',      :handler => MouseHole::ProxyHandler.new(MouseHole::CENTRAL)
             uri '/',          :handler => RedirectHandler.new("/doorway")
             uri '/doorway',   :handler => Mongrel::Camping::CampingHandler.new(MouseHole)
