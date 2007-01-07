@@ -37,21 +37,26 @@ a img {
 /* appearance of doorblocks */
 .block {
   display: block;
-  border: solid 1px #df5;
   margin: 4px 0; padding: 0;
+  background: #eef;
+}
+
+#mousehole .block {
+  background: white;
 }
 
 .block .title {
   margin: 1px;
   padding: 4px;
-  background-color: #efa;
+  border: solid 1px #ccc;
+  cursor: move;
 }
 
 .block .inside {
-  font-size: .8em;
+  border-top: solid 2px #eee7ee;
+  font-size: .7em;
   margin: 1px;
   padding: 5px;
-  background-color: #fff7ff;
 }
 
 .block .inside h1,
@@ -61,10 +66,12 @@ a img {
 .block .inside h5,
 .block .inside h6 {
   font-family: verdana, arial, sans-serif;
+  font-weight: bold;
 }
 
 .block p {
   margin: 6px 0;
+  font-size: 13px;
 }
 
 .block .title h1 {

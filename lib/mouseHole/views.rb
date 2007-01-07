@@ -147,7 +147,7 @@ module MouseHole::Views
                 }
               end
               if app.description
-                div.description app.description
+                div.description app.summary
               end
             end
           end

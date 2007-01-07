@@ -21,6 +21,12 @@ module MouseHole
 
     def broken?; false end
 
+    def summary
+      s = description[/.{10,100}[.?!\)]+|^.{1,100}(\b|$)/m, 0]
+      s += "..." if s =~ /\w$/ and s.length < description.length
+      s
+    end
+
     def rewrites? page
       if @rules
         rule = @rules.detect { |rule| rule.match_uri(page.location) }
