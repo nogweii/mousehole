@@ -29,9 +29,10 @@ module MouseHole
 
     def rewrites? page
       if @rules
+        return false unless @accept == page.converter
         rule = @rules.detect { |rule| rule.match_uri(page.location) }
         return false unless rule and rule.action == :rewrite
-        @accept == page.converter
+        true
       end
     end
 

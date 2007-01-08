@@ -47,23 +47,28 @@ module MouseHole::Views
   def index
     div.main do
       if @doorblocks.any?
-        ol.doorblocks do
-          @doorblocks.each do |app, klass, body|
-            li.blocksort do
-              div.block do
-                div.title do
-                  h1 klass.title
-                  if app.mount_on
-                    h2 do
-                      text "from "
-                      a app.title, :href => "..#{app.mount_on}"
+        ol.doorblocks.userpool! do
+        end
+        div.pool do
+          ol.doorblocks.inactivepool! do
+            li "Blocks:"
+            @doorblocks.each do |app, klass, body|
+              li.blocksort :id => "#{klass.name}" do
+                div.block.send("#{klass.title}") do
+                  div.title do
+                    h1 klass.title
+                    if app.mount_on
+                      h2 do
+                        text "from "
+                        a app.title, :href => "..#{app.mount_on}"
+                      end
+                    else
+                      h2 "from #{app.title}"
                     end
-                  else
-                    h2 "from #{app.title}"
                   end
-                end
-                div.inside do
-                  self << body
+                  div.inside do
+                    self << body
+                  end
                 end
               end
             end
@@ -80,7 +85,11 @@ module MouseHole::Views
               opacity: 0.8,
               fx:       200,
               revert: true,
-              tolerance: 'intersect'
+              tolerance: 'intersect',
+              onStop: function() {
+                var s = $.SortSerialize('userpool');
+                $.ajax({type: 'POST', url: '/doorway/blocks', data: s.hash});
+              }
             });
           });
         }
