@@ -45,15 +45,15 @@ module MouseHole::Controllers
   end
 
   class RBlocks < R '/blocks'
-    def post
-      Block.delete_all
-      @input.userpool.each_with_index do |block, i|
-        raise ArgumentError if block !~ /^[\w:]+$/
-        klass = eval(block)
-        app = 
-        Block.create :app_id => klass.
-      end
-    end
+    # def post
+    #   Block.delete_all
+    #   @input.userpool.each_with_index do |block, i|
+    #     raise ArgumentError if block !~ /^[\w:]+$/
+    #     klass = eval(block)
+    #     app = 
+    #     Block.create :app_id => klass.
+    #   end
+    # end
   end
 
   class AppsRss < R '/apps.rss'
