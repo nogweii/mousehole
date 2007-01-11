@@ -46,9 +46,9 @@ spec =
         s.required_ruby_version = '>= 1.8.4'
 
         s.files = %w(COPYING README Rakefile) +
-          Dir.glob("{bin,doc/rdoc,test,lib}/**/*") + 
+          Dir.glob("{bin,doc/rdoc,test,lib,static}/**/*") + 
           Dir.glob("ext/**/*.{h,c,rb}") +
-          Dir.glob("examples/**/*.rb") +
+          Dir.glob("samples/**/*.rb") +
           Dir.glob("tools/*.rb")
         
         s.require_path = "lib"
