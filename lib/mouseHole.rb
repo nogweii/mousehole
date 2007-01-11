@@ -1,7 +1,7 @@
 require 'rubygems'
 require 'fileutils'
 require 'hpricot'
-require 'json-hack'
+require 'jsonhack'
 require 'logger'
 require 'net/http'
 require 'open-uri'
