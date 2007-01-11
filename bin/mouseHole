@@ -85,7 +85,7 @@ if env_http_proxy = ENV["HTTP_PROXY"]
     options.proxy_host = proxy_uri.host
     options.proxy_port = proxy_uri.port
 end
-options.app_dir = Dir.pwd
+options.app_dir = File.expand_path('../..', __FILE__)
 if defined? RUBYSCRIPT2EXE_APPEXE
     options.app_dir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
 end

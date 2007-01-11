@@ -178,7 +178,7 @@ module MouseHole
         end
       end
       if @klass
-        p(Object.send :remove_const, @klass)
+        Object.send :remove_const, @klass
       end
     end
 
