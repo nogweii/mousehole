@@ -57,7 +57,7 @@ module MouseHole
       end
       path = File.join(@dir, rb)
       app = @apps[rb] = App.load(@server, rb, path)
-      app.mtime = Time.now
+      app.mtime = File.mtime(path)
       app
     end
 
@@ -92,6 +92,10 @@ module MouseHole
 
     def find_app name
       @apps[name]
+    end
+
+    def find_app_by_token token
+      (@apps.detect { |name, app| app.token == token } || []).last
     end
 
     def doorblocks

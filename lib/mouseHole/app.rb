@@ -15,6 +15,7 @@ module MouseHole
     def initialize
       yield self
       @accept ||= HTML
+      @token = MouseHole.token
     end
 
     def icon; "ruby_gear" end
@@ -43,6 +44,31 @@ module MouseHole
       rescue Exception => e
         ## TODO: log the exception
         puts "[#{self.title}] #{e.class}: #{e.message}"
+      end
+    end
+
+    def find_handler(opts = {})
+      if handlers
+        handlers.each do |h_is, h_name, h_blk, h_opts|
+          next unless h_is == opts[:is] if opts[:is]
+          next unless h_name == opts[:name] if opts[:name]
+          next unless h_opts[:on] == opts[:on] if opts[:on]
+          return h_blk
+        end
+      end
+    end
+
+    def mount_path(path)
+      if path.to_s =~ %r</?(#{self.class.name})(/|$)>i
+        p = path.to_s.gsub(%r!^/!, '')
+        hdlr = find_handler :is => :mount, :name => p, :on => :all
+        if hdlr
+          "/#@token/#{p}"
+        else
+          raise MountError, "no `#{path}' mount found on app #{self.class.name}."
+        end
+      else
+        raise MountError, "path `#{path}' is not a mount for app #{self.class.name}."
       end
     end
 
@@ -153,8 +179,12 @@ module MouseHole
         end
       end
 
-      def mount(path, &b)
-        (@default_handlers ||= []) << [:mount, path, MouseHole::MountHandler.new(b)]
+      def mount(path, opts = {}, &b)
+        if path.to_s =~ %r</?(#{name})(/|$)>i
+          (@default_handlers ||= []) << [:mount, path.to_s.gsub(%r!^/!, ''), MouseHole::MountHandler.new(b), opts]
+        else
+          raise MountError, "cannot mount #{name} app on path `#{path}'.  Try something under `/#{name}'."
+        end
       end
 
       [:url].each do |rt|
@@ -165,8 +195,6 @@ module MouseHole
         end
       end
 
-      def rewrite(*a,&b)
-      end
     end
 
     class Rule
@@ -210,5 +238,7 @@ module MouseHole
     def icon; "broken" end
     def broken?; true end
   end
+
+  class MountError < Exception; end
 
 end

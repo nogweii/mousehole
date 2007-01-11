@@ -16,13 +16,11 @@ module MouseHole
   end
 
   class Page
-    attr_accessor :location, :status, :headers, :converter, :document
+    attr_accessor :location, :status, :headers, :converter, :document, :input
     def initialize(uri, status, headers)
-      if uri.match(/[#{Regexp::quote('{}|\^[]`')}]/)
-        uri = URI.escape(uri)
-      end
-      @location = URI(uri)
+      @location = uri
       @status = status
+      @input = Camping.qsp(uri.query)
       @headers = PageHeaders[*headers]
       ctype = @headers['Content-Type']
       if ctype
@@ -57,6 +55,10 @@ module MouseHole
         false
       end
     end 
+
+    def body=(str)
+      @document = str
+    end
 
     def body
       if @converter

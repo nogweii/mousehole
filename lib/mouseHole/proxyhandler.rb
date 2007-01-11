@@ -96,7 +96,7 @@ module MouseHole
       response.write(body)
     end
 
-    def page_prep(request)
+    def page_headers(request)
       reqh, env = {}, {}
       request.params.each do |k, v|
         k = k.downcase.gsub('_','-')
@@ -105,9 +105,16 @@ module MouseHole
           reqh[$'] = v
         end
       end
-      path = env['path-info'].gsub("//#{env['server-name']}",'')
+      return reqh, env
+    end
+
+    def page_prep(request)
+      reqh, env = page_headers(request)
       uri = "http:#{env['path-info']}"
-      return uri, path, reqh, env
+      if uri.match(/[#{Regexp::quote('{}|\^[]`')}]/)
+        uri = URI.escape(uri)
+      end
+      return URI(uri), reqh, env
     end
   end
 
@@ -119,10 +126,10 @@ module MouseHole
     end
 
     def process(request, response)
-      uri, path, reqh, env = page_prep(request)
+      reqh, env = page_headers(request)
       header = []
       choose_header(reqh, header)
-      page = Page.new(uri, 404, header)
+      page = Page.new(URI(env['request-uri']), 404, header)
       @block.call(page)
       output(page, response)
     end
@@ -137,8 +144,17 @@ module MouseHole
     end
 
     def process(request, response)
-      uri, path, reqh, env = page_prep(request)
+      uri, reqh, env = page_prep(request)
         
+      if uri.path =~ %r!/([\w\-]{32})/!
+        token, trail = $1, $'
+        app = @central.find_app_by_token token
+        if app
+          hdlr = app.find_handler :is => :mount, :on => :all, :name => trail
+          return hdlr.process(request, response)
+        end
+      end
+
       header = []
       choose_header(reqh, header)
       set_via(header)
@@ -147,7 +163,7 @@ module MouseHole
       http.open_timeout = 10
       http.read_timeout = 20
       reqm = Net::HTTP.const_get(env['request-method'].capitalize)
-      resin = http.request(reqm.new(path, header), reqm::REQUEST_HAS_BODY ? request.body : nil) do |resin|
+      resin = http.request(reqm.new(uri.request_uri, header), reqm::REQUEST_HAS_BODY ? request.body : nil) do |resin|
         header = []
         # @logger.debug("opened: http:#{env['path-info']}")
         choose_header(resin, header)
