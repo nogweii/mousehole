@@ -53,7 +53,7 @@ module MouseHole
 
     def load_app rb
       if @apps.has_key? rb
-        @apps[rb].unload
+        @apps[rb].unload(@server)
       end
       path = File.join(@dir, rb)
       app = @apps[rb] = App.load(@server, rb, path)

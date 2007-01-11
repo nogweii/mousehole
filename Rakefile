@@ -33,17 +33,16 @@ spec =
         s.name = NAME
         s.version = VERS
         s.platform = Gem::Platform::RUBY
-        s.has_rdoc = true
+        s.has_rdoc = false
         s.extra_rdoc_files = [ "README" ]
         s.summary = "a scriptable proxy, an alternative to Greasemonkey and personal web server."
         s.description = s.summary
         s.author = "why the lucky stiff"
         s.executables = ['mouseHole']
 
-        s.add_dependency('mongrel', '>= 0.3.13')
-        s.add_dependency('camping', '>= 1.4.1')
-        s.add_dependency('sqlite3-ruby', '>=1.1.0')
-        s.add_dependency('hpricot', '>=0.3')
+        s.add_dependency('camping-omnibus', '>= 1.5.180')
+        s.add_dependency('hpricot', '>=0.4.92')
+        s.add_dependency('json', '>=0.4.2')
         s.required_ruby_version = '>= 1.8.4'
 
         s.files = %w(COPYING README Rakefile) +

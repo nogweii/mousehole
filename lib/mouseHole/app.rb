@@ -111,7 +111,6 @@ module MouseHole
       # Hook up the general configuration from the object.
       model = Models::App.find_by_script(rb) || Models::App.create(:script => rb)
       if klass.respond_to? :run
-        server.unregister "/#{title}"
         server.register "/#{title}", Mongrel::Camping::CampingHandler.new(klass)
       end
 
@@ -134,11 +133,14 @@ module MouseHole
       else
         if klass.const_defined? :MouseHole
           klass::MouseHole.constants.each do |c|
-            klass::MouseHole.const_get(c).class_eval do
-              def self.title
-                name[/::([^:]+?)$/, 1]
+            dk = klass::MouseHole.const_get(c)
+            if dk.is_a? Class
+              dk.class_eval do
+                def self.title
+                  name[/::([^:]+?)$/, 1]
+                end
+                include C, Base, Models
               end
-              include C, Base, Models
             end
           end
         end
@@ -165,9 +167,18 @@ module MouseHole
       end
     end
 
-    def unload
+    def unload(server)
+      if @mount_on
+        server.unregister @mount_on
+      end
+      if handlers
+        handlers.each do |h_is, h_name, h_blk|
+          next unless h_is == :mount
+          server.unregister "/#{h_name}"
+        end
+      end
       if @klass
-        Object.send :remove_const, @klass
+        p(Object.send :remove_const, @klass)
       end
     end
 
