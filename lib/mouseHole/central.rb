@@ -5,10 +5,15 @@ module MouseHole
 
   class Central
 
-    attr_accessor :sandbox, :options
+    attr_accessor :sandbox, :logger, :proxy_host, :proxy_port
 
     def initialize(server, options)
-      @server, @options = server, options
+      @server = server
+      options.each do |k, v|
+        if respond_to? "#{k}="
+          send("#{k}=", v) 
+        end
+      end
 
       # add MouseHole hosts entries
       DOMAINS.each do |domain|
@@ -24,7 +29,7 @@ module MouseHole
 
       # connect to the database, get some data
       ActiveRecord::Base.establish_connection options.database
-      ActiveRecord::Base.logger = Logger.new(STDOUT)
+      ActiveRecord::Base.logger = options.logger
       MouseHole.create
       # load_conf
 

@@ -2,16 +2,14 @@
 $:.unshift File.expand_path("../../lib", __FILE__)
 require 'optparse'
 require 'ostruct'
-require 'webrick/httpproxy'
+require 'rubygems'
 require 'mouseHole'
 
-options = OpenStruct.new
-options.tidy = false
-options.server = "mongrel"
-options.daemon = false
-options.working_dir = Dir.pwd
-options.server_log = "-"
-options.log_level = Logger::INFO
+options = Camping::H[
+  'tidy' => false,     'server' => 'mongrel',
+  'daemon' => false,   'working_dir' => Dir.pwd,
+  'server_log' => '-', 'log_level' => Logger::WARN
+]
 
 # locate ~/.mouseHole
 homes = []
@@ -55,7 +53,15 @@ opts = OptionParser.new do |opts|
     end
 
     opts.on("-v", "--verbose", "Run verbosely") do |v|
-        options.log_level = Logger::WARN
+        options.log_level = Logger::INFO
+    end
+
+    opts.on("--log filename", "Log to a file (defaults to '-' which is STDOUT)") do |l|
+        options.server_log = l
+    end
+
+    opts.on("--debug", "Run with debugging data (proxy details, SQL queries)") do |v|
+        options.log_level = Logger::DEBUG
     end
 
     opts.separator ""
@@ -98,7 +104,7 @@ options.logger =
     case options.server_log
     when "-"
         Logger.new STDOUT
-    when String
+    else
         Logger.new options.server_log
     end
 options.logger.level = options.log_level

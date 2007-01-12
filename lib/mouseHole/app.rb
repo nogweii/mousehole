@@ -4,6 +4,7 @@ module MouseHole
 
     include REXML
     include Converters
+    include LoggerMixin
 
     METADATA = [:title, :namespace, :description, :version, :rules, :handlers, :accept]
 
@@ -12,10 +13,10 @@ module MouseHole
       :install_uri, :registered_uris, :klass, :model, :app_style,
       *METADATA
 
-    def initialize
+    def initialize opts = {}
       yield self
       @accept ||= HTML
-      @token = MouseHole.token
+      @token ||= MouseHole.token
     end
 
     def icon; "ruby_gear" end
@@ -42,8 +43,7 @@ module MouseHole
       begin
         rewrite(page)
       rescue Exception => e
-        ## TODO: log the exception
-        puts "[#{self.title}] #{e.class}: #{e.message}"
+        error "[#{self.title}] #{e.class}: #{e.message}"
       end
     end
 
