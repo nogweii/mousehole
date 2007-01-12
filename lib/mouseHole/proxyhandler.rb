@@ -54,7 +54,7 @@ module MouseHole
       resin = http.request(reqm.new(uri.request_uri, header), reqm::REQUEST_HAS_BODY ? request.body : nil) do |resin|
         header = []
         debug " > opened #{uri}", :since => start
-        choose_header(resin, header)
+        choose_header(resin.to_hash, header)
         set_via(header)
 
         page = Page.new(uri, resin.code, header)

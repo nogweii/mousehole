@@ -16,16 +16,16 @@ module MouseHole
     def split_field(f) f ? f.split(/,\s+/).collect{|i| i.downcase } : [] end
 
     def choose_header(src, dst)
-      connections = split_field(src['connection'])
+      connections = split_field(src['connection'].to_s)
       src.each do |key, value|
-      key = key.downcase
-      if HopByHop.member?(key)      || # RFC2616: 13.5.1
-         connections.member?(key)     || # RFC2616: 14.10
-         ShouldNotTransfer.member?(key)  # pragmatics
-         # @logger.debug("choose_header: `#{key}: #{value}'")
-         next
-      end
-      dst << [key.downcase, value]
+        key = key.downcase
+        if HopByHop.member?(key)      || # RFC2616: 13.5.1
+           connections.member?(key)     || # RFC2616: 14.10
+           ShouldNotTransfer.member?(key)  # pragmatics
+           # @logger.debug("choose_header: `#{key}: #{value}'")
+           next
+        end
+        dst << [key.downcase, value.length == 1 ? value.first : value]
       end
     end
 
