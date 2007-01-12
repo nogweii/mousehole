@@ -1,6 +1,6 @@
 module MouseHole
   module LoggerMixin
-    [:debug, :info, :warn].each do |m|
+    [:debug, :info, :warn, :error].each do |m|
       define_method(m) do |txt, *opts|
         opts = opts.first || {}
         if opts[:since]
