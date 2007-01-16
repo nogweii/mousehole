@@ -81,9 +81,13 @@ module MouseHole
       end || []
     end
 
+    def doorblock_get(b)
+      Object.const_get(@klass)::MouseHole.const_get(b)
+    end
+
     def doorblock_classes
       doorblocks.map do |b|
-        Object.const_get(@klass)::MouseHole.const_get(b)
+        doorblock_get(b)
       end
     end
 

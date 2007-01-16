@@ -35,7 +35,7 @@ module MouseHole
         
       if uri.path =~ %r!/([\w\-]{32})/!
         token, trail = $1, $'
-        app = @central.find_app_by_token token
+        app = @central.find_app :token => token
         if app
           hdlr = app.find_handler :is => :mount, :on => :all, :name => trail
           return hdlr.process(request, response)

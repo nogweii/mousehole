@@ -95,12 +95,15 @@ module MouseHole
       @apps.values
     end
 
-    def find_app name
-      @apps[name]
-    end
-
-    def find_app_by_token token
-      (@apps.detect { |name, app| app.token == token } || []).last
+    def find_app crit
+      case crit
+      when String
+        @apps[crit]
+      when Hash
+        (@apps.detect { |name, app|
+          crit.all? { |k,v| app.send(k) == v }
+        } || []).last
+      end
     end
 
     def doorblocks

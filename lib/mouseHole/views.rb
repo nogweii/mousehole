@@ -12,6 +12,7 @@ module MouseHole::Views
           :rel => 'alternate', :type => 'application/rss+xml'
         script :type => "text/javascript", :src => R(Static, 'js', 'jquery.js')
         script :type => "text/javascript", :src => R(Static, 'js', 'interface.js')
+        script :type => "text/javascript", :src => R(Static, 'js', 'mouseHole.js')
         style "@import '#{R(Static, 'css', 'doorway.css')}';", :type => 'text/css'
       end
       body do
@@ -44,55 +45,43 @@ module MouseHole::Views
     end
   end
 
-  def index
-    div.main do
-      if @doorblocks.any?
-        ol.doorblocks.userpool! do
-        end
-        div.pool do
-          ol.doorblocks.inactivepool! do
-            li "Blocks:"
-            @doorblocks.each do |app, klass, body|
-              li.blocksort :id => "#{klass.name}" do
-                div.block.send("#{klass.title}") do
-                  div.title do
-                    h1 klass.title
-                    if app.mount_on
-                      h2 do
-                        text "from "
-                        a app.title, :href => "..#{app.mount_on}"
-                      end
-                    else
-                      h2 "from #{app.title}"
-                    end
-                  end
-                  div.inside do
-                    self << body
-                  end
-                end
+  def block_list blocks
+    blocks.each do |app, klass, body|
+      li.blocksort :id => "#{MouseHole.token}=#{klass.name}" do
+        div.block.send("#{klass.title}") do
+          div.title do
+            div.actions do
+              a.del "hide", :href => "javascript://"
+            end
+            h1 klass.title
+            if app.mount_on
+              h2 do
+                text "from "
+                a app.title, :href => "..#{app.mount_on}"
               end
+            else
+              h2 "from #{app.title}"
             end
           end
+          div.inside do
+            self << body
+          end
         end
-        script(:language => 'javascript') do
-        %q{
-          $(document).ready(function(){
-            $('ol.doorblocks').Sortable({
-              accept: 'blocksort',
-              activeclass: 'blockactive',
-              hoverclass: 'blockhover',
-              helperclass: 'sorthelper',
-              opacity: 0.8,
-              fx:       200,
-              revert: true,
-              tolerance: 'intersect',
-              onStop: function() {
-                var s = $.SortSerialize('userpool');
-                $.ajax({type: 'POST', url: '/doorway/blocks', data: s.hash});
-              }
-            });
-          });
-        }
+      end
+    end
+  end
+
+  def index
+    div.main do
+      if @allblocks.any?
+        ol.doorblocks.userpool! do
+          block_list @doorblocks
+        end
+        div.pool do
+          ol.doorblocks.fullpool! do
+            li "Blocks:"
+            block_list @allblocks
+          end
         end
       else
         p "None of your installed apps have any doorblocks."

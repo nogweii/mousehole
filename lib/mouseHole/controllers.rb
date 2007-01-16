@@ -1,14 +1,22 @@
 module MouseHole::Controllers
 
   class RIndex < R '/'
+    def make app, b
+      paths = {'SCRIPT_NAME' => File.join(R(RIndex), app.mount_on)}
+      controller = b.new(nil, @env.merge(paths), @method)
+      controller.instance_variable_set("@app", app)
+      controller.service
+      [app, b, controller.body.to_s]
+    end
     def get
-      @doorblocks = 
+      @doorblocks =
+        Block.find(:all, :include => :app).map do |b|
+          app = MouseHole::CENTRAL.find_app(b.app.script)
+          make app, app.doorblock_get(b.title)
+        end
+      @allblocks =
         MouseHole::CENTRAL.doorblocks.map do |app, b|
-          paths = {'SCRIPT_NAME' => File.join(R(RIndex), app.mount_on)}
-          controller = b.new(nil, @env.merge(paths), @method)
-          controller.instance_variable_set("@app", app)
-          controller.service
-          [app, b, controller.body.to_s]
+          make app, b
         end
       doorway :index
     end
@@ -45,15 +53,16 @@ module MouseHole::Controllers
   end
 
   class RBlocks < R '/blocks'
-    # def post
-    #   Block.delete_all
-    #   @input.userpool.each_with_index do |block, i|
-    #     raise ArgumentError if block !~ /^[\w:]+$/
-    #     klass = eval(block)
-    #     app = 
-    #     Block.create :app_id => klass.
-    #   end
-    # end
+    def post
+      Block.delete_all
+      [*@input.userpool].each_with_index do |b, i|
+        is_valid, appk, doork = *b.match(/=(\w+)::MouseHole::(\w+)$/)
+        raise ArgumentError unless is_valid
+        klass = MouseHole::CENTRAL.find_app :klass => appk
+        app = MouseHole::Models::App.find_by_script klass.path
+        block = Block.create :app_id => app.id, :title => doork, :position => i
+      end.inspect
+    end
   end
 
   class AppsRss < R '/apps.rss'
