@@ -59,16 +59,12 @@ module MouseHole
     end
 
     def mount_path(path)
-      if path.to_s =~ %r</?(#{self.class.name})(/|$)>i
-        p = path.to_s.gsub(%r!^/!, '')
-        hdlr = find_handler :is => :mount, :name => p, :on => :all
-        if hdlr
-          "/#@token/#{p}"
-        else
-          raise MountError, "no `#{path}' mount found on app #{self.class.name}."
-        end
+      p = path.to_s.gsub(%r!^/!, '')
+      hdlr = find_handler :is => :mount, :name => p, :on => :all
+      if hdlr
+        "/#@token/#{p}"
       else
-        raise MountError, "path `#{path}' is not a mount for app #{self.class.name}."
+        raise MountError, "no `#{path}' mount found on app #{self.class.name}."
       end
     end
 
@@ -82,7 +78,7 @@ module MouseHole
     end
 
     def doorblock_get(b)
-      Object.const_get(@klass)::MouseHole.const_get(b)
+      Object.const_get(@klass)::MouseHole.const_get(b) rescue nil
     end
 
     def doorblock_classes
@@ -195,11 +191,7 @@ module MouseHole
       end
 
       def mount(path, opts = {}, &b)
-        if path.to_s =~ %r</?(#{name})(/|$)>i
-          (@default_handlers ||= []) << [:mount, path.to_s.gsub(%r!^/!, ''), MouseHole::MountHandler.new(b), opts]
-        else
-          raise MountError, "cannot mount #{name} app on path `#{path}'.  Try something under `/#{name}'."
-        end
+        (@default_handlers ||= []) << [:mount, path.to_s.gsub(%r!^/!, ''), MouseHole::MountHandler.new(b), opts]
       end
 
       [:url].each do |rt|

@@ -6,14 +6,14 @@ module MouseHole::Controllers
       controller = b.new(nil, @env.merge(paths), @method)
       controller.instance_variable_set("@app", app)
       controller.service
-      [app, b, controller.body.to_s]
+      [app, b, controller]
     end
     def get
       @doorblocks =
         Block.find(:all, :include => :app).map do |b|
           app = MouseHole::CENTRAL.find_app(b.app.script)
-          make app, app.doorblock_get(b.title)
-        end
+          make(app, app.doorblock_get(b.title)) rescue nil
+        end.compact
       @allblocks =
         MouseHole::CENTRAL.doorblocks.map do |app, b|
           make app, b

@@ -46,14 +46,15 @@ module MouseHole::Views
   end
 
   def block_list blocks
-    blocks.each do |app, klass, body|
+    blocks.each do |app, klass, c|
       li.blocksort :id => "#{MouseHole.token}=#{klass.name}" do
-        div.block.send("#{klass.title}") do
+        div.block.send(klass.title) do
           div.title do
             div.actions do
               a.del "hide", :href => "javascript://"
             end
-            h1 klass.title
+            t = c.title if c.respond_to? :title
+            h1(t || klass.title)
             if app.mount_on
               h2 do
                 text "from "
@@ -64,7 +65,7 @@ module MouseHole::Views
             end
           end
           div.inside do
-            self << body
+            self << c.body.to_s 
           end
         end
       end
@@ -185,7 +186,7 @@ module MouseHole::Views
         div.rules do
           h2 "Rules"
           select :size => 5 do
-            @app.rules.each do |rule|
+            [*@app.rules].each do |rule|
               option rule
             end
           end
