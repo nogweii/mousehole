@@ -32,7 +32,7 @@ wherever, allowing whomever you want to poke their head in.
 The underlying ideas are always the same, though.
 
 * [1] Start MouseHole.
-* [2] Visit http://127.0.0.1:37004/ to view your settings.
+* [2] Visit http://127.0.0.1:3704/ to view your settings.
 * [3] Set MouseHole as your web proxy.
 * [4] Install user scripts.
 * [5] Or, write your own.
@@ -57,7 +57,7 @@ variable to the IP:PORT of that proxy.
 == the doorway ==
 
 Visit the hostname and port you choose above in your browser.  Normally, this
-will be http://127.0.0.1:37004/.  The doorway will appear.  A page with a bit
+will be http://127.0.0.1:3704/.  The doorway will appear.  A page with a bit
 of mouseHole-related graffitis.  (Once you get the proxy setup, you'll be able
 to use http://mh/ or http://mouse.hole/ instead of the IP:PORT.)
 
@@ -79,11 +79,11 @@ able to turn it on and off at will?
 If you're using Firefox, open the Preferences window.  Select the General tab.
 Click the Connection Settings button. Activate the Manual Proxy Configuration
 settings.  Fill in MouseHole's hostname and port.  (Again, the default is
-127.0.0.1 and port 37004.)
+127.0.0.1 and port 3704.)
 
 If you're on OS X and want to use it to proxy all Safari traffic, go to the
 Network preference pane (in System Preferences), select Web Proxy, enter
-127.0.0.1 as address and 37004 as port.
+127.0.0.1 as address and 3704 as port.
 
 
 === speeding up with lighttpd or apache2 ===
@@ -137,14 +137,14 @@ mouseHole will guide you through the installation.
 You can now turn off your proxy settings in your browser.  Pass URLs into
 ProxyLike by prefixing the URL with your mouseHole IP:PORT.
 
-* http://127.0.0.1:37004/http:/google.com will run Google through mouseHole.
-* http://127.0.0.1:37004/http:/hoodwink.d/onslaught will view Hoodwink'd
+* http://127.0.0.1:3704/http:/google.com will run Google through mouseHole.
+* http://127.0.0.1:3704/http:/hoodwink.d/onslaught will view Hoodwink'd
 Onslaught through mouseHole.
 
 You can also install scripts through ProxyLike. If you have it installed, you
 can upgrade ProxyLike with:
 
-  http://127.0.0.1:37004/http:/www.whytheluckystiff.net/mouseHole/proxylike.user.rb.
+  http://127.0.0.1:3704/http:/www.whytheluckystiff.net/mouseHole/proxylike.user.rb.
 
 
 == install user scripts ==
@@ -165,6 +165,6 @@ A list of known MouseHole scripts is available at UserScripts.
 For help in writing your own script, see 
 http://mousehole.rubyforge.org/wiki/wiki.pl?Editing_MouseHole_Scripts.
 
-For debugging purposes, you can visit http://localhost:37004/mouseHole/database
+For debugging purposes, you can visit http://localhost:3704/mouseHole/database
 to view a database dump of MouseHole.
 
