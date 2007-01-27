@@ -40,7 +40,7 @@ opts = OptionParser.new do |opts|
     end
 
     opts.on("-s", "--server SERVER_APP",
-            "Web server to launch: webrick, lighttpd or apache2 (default is webrick)") do |s|
+            "Web server to launch: mongrel, lighttpd or apache2 (default is mongrel)") do |s|
         options.server = s
     end
 
