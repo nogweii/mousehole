@@ -122,6 +122,7 @@ when "mongrel"
         end
     end
     config = Mongrel::Configurator.new :host => options.host do
+        daemonize :cwd => options.working_dir, :log_file => options.server_log if options.daemon
         listener :port => options.port do
             MouseHole::CENTRAL = MouseHole::Central.new(@listener, options)
             uri 'http:',      :handler => MouseHole::ProxyHandler.new(MouseHole::CENTRAL)
