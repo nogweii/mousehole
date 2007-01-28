@@ -16,69 +16,69 @@ homes = []
 homes << [ENV['HOME'], File.join( ENV['HOME'], '.mouseHole' )] if ENV['HOME']
 homes << [ENV['APPDATA'], File.join( ENV['APPDATA'], 'MouseHole' )] if ENV['APPDATA']
 homes.each do |home_top, home_dir|
-    next unless home_top
-    if File.exists? home_top
-        FileUtils.mkdir_p( home_dir )
-        conf = File.join( home_dir, 'options.yaml' )
-        if File.exists? conf
-            YAML.load_file( conf ).each { |k,v| options.method("#{k}=").call(v) }
-        end
-        options.mouse_dir = home_dir
-        break
+  next unless home_top
+  if File.exists? home_top
+    FileUtils.mkdir_p( home_dir )
+    conf = File.join( home_dir, 'options.yaml' )
+    if File.exists? conf
+      YAML.load_file( conf ).each { |k,v| options.method("#{k}=").call(v) }
     end
+    options.mouse_dir = home_dir
+    break
+  end
 end
 
 opts = OptionParser.new do |opts|
-    opts.banner = "Usage: mouseHole [options] [ip or hostname] [port]"
+  opts.banner = "Usage: mouseHole [options] [ip or hostname] [port]"
 
-    opts.separator ""
-    opts.separator "Specific options:"
+  opts.separator ""
+  opts.separator "Specific options:"
 
-    opts.on("-d", "--directory DIRECTORY",
-            "MouseHole directory (defaults to #{options.mouse_dir || 'None'})") do |d|
-        options.mouse_dir = d
-    end
+  opts.on("-d", "--directory DIRECTORY",
+          "MouseHole directory (defaults to #{options.mouse_dir || 'None'})") do |d|
+    options.mouse_dir = d
+  end
 
-    opts.on("-s", "--server SERVER_APP",
-            "Web server to launch: mongrel, lighttpd or apache2 (default is mongrel)") do |s|
-        options.server = s
-    end
+  opts.on("-s", "--server SERVER_APP",
+          "Web server to launch: mongrel, lighttpd or apache2 (default is mongrel)") do |s|
+    options.server = s
+  end
 
-    opts.on("-D", "--[no-]daemon",  "Daemon mode") do |d|
-        options.daemon = d
-    end
+  opts.on("-D", "--[no-]daemon",  "Daemon mode") do |d|
+    options.daemon = d
+  end
 
-    opts.on("-t", "--[no-]tidy",    "Use Tidy?") do |t|
-        options.tidy = t
-    end
-
-    opts.on("-v", "--verbose", "Run verbosely") do |v|
-        options.log_level = Logger::INFO
-    end
-
-    opts.on("--log filename", "Log to a file (defaults to '-' which is STDOUT)") do |l|
-        options.server_log = l
-    end
-
-    opts.on("--debug", "Run with debugging data (proxy details, SQL queries)") do |v|
-        options.log_level = Logger::DEBUG
-    end
-
-    opts.separator ""
-    opts.separator "Common options:"
+  opts.on("-t", "--[no-]tidy",    "Use Tidy?") do |t|
+    options.tidy = t
+  end
   
-    # No argument, shows at tail.  This will print an options summary.
-    # Try it and see!
-    opts.on_tail("-h", "--help", "Show this message") do
-      puts opts
-      exit
-    end
+  opts.on("-v", "--verbose", "Run verbosely") do |v|
+    options.log_level = Logger::INFO
+  end
+
+  opts.on("--log filename", "Log to a file (defaults to '-' which is STDOUT)") do |l|
+    options.server_log = l
+  end
   
-    # Another typical switch to print the version.
-    opts.on_tail("--version", "Show version") do
-      puts MouseHole::VERSION
-      exit
-    end
+  opts.on("--debug", "Run with debugging data (proxy details, SQL queries)") do |v|
+    options.log_level = Logger::DEBUG
+  end
+
+  opts.separator ""
+  opts.separator "Common options:"
+  
+  # No argument, shows at tail.  This will print an options summary.
+  # Try it and see!
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+  
+  # Another typical switch to print the version.
+  opts.on_tail("--version", "Show version") do
+    puts MouseHole::VERSION
+    exit
+  end
 end
 
 opts.parse! ARGV
@@ -87,13 +87,13 @@ options.port = ARGV[1] || 3704
 
 proxy_uri = nil
 if env_http_proxy = ENV["HTTP_PROXY"]
-    proxy_uri = URI.parse(env_http_proxy)
-    options.proxy_host = proxy_uri.host
-    options.proxy_port = proxy_uri.port
+  proxy_uri = URI.parse(env_http_proxy)
+  options.proxy_host = proxy_uri.host
+  options.proxy_port = proxy_uri.port
 end
 options.app_dir = File.expand_path('../..', __FILE__)
 if defined? RUBYSCRIPT2EXE_APPEXE
-    options.app_dir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
+  options.app_dir = File.dirname( RUBYSCRIPT2EXE_APPEXE )
 end
 options.lib_dir = File.join( options.app_dir, 'lib' )
 options.share_dir = File.join( options.app_dir, 'share' )
@@ -101,39 +101,39 @@ options.auto_marshal = %{Marshal.load( #{ Marshal.dump( options ).dump } )}
 options.database ||= {:adapter => 'sqlite3', :database => File.join( options.mouse_dir, '+DATA' )}
 
 options.logger = 
-    case options.server_log
-    when "-"
-        Logger.new STDOUT
-    else
-        Logger.new options.server_log
-    end
+  case options.server_log
+  when "-"
+    Logger.new STDOUT
+  else
+    Logger.new options.server_log
+  end
 options.logger.level = options.log_level
 
 case options.server
 when "mongrel"
-    require 'mongrel'
-    require 'mongrel/camping'
-    class RedirectHandler < Mongrel::HttpHandler
-        def initialize(path)
-            @response = "HTTP/1.1 302 Found\r\nLocation: #{path}\r\nConnection: close\r\n\r\n"
-        end
-        def process(request, response)
-            response.socket.write(@response)
-        end
+  require 'mongrel'
+  require 'mongrel/camping'
+  class RedirectHandler < Mongrel::HttpHandler
+    def initialize(path)
+      @response = "HTTP/1.1 302 Found\r\nLocation: #{path}\r\nConnection: close\r\n\r\n"
     end
-    config = Mongrel::Configurator.new :host => options.host do
-        daemonize :cwd => options.working_dir, :log_file => options.server_log if options.daemon
-        listener :port => options.port do
-            MouseHole::CENTRAL = MouseHole::Central.new(@listener, options)
-            uri 'http:',      :handler => MouseHole::ProxyHandler.new(MouseHole::CENTRAL)
-            uri '/',          :handler => RedirectHandler.new("/doorway")
-            uri '/doorway',   :handler => Mongrel::Camping::CampingHandler.new(MouseHole)
-            uri '/static',    :handler => Mongrel::DirHandler.new(File.join(options.app_dir, 'static'))
-            trap('INT') { stop }
-            run
-        end
+    def process(request, response)
+      response.socket.write(@response)
     end
-    config.join
+  end
+  config = Mongrel::Configurator.new :host => options.host do
+    daemonize :cwd => options.working_dir, :log_file => options.server_log if options.daemon
+    listener :port => options.port do
+      MouseHole::CENTRAL = MouseHole::Central.new(@listener, options)
+      uri 'http:',      :handler => MouseHole::ProxyHandler.new(MouseHole::CENTRAL)
+      uri '/',          :handler => RedirectHandler.new("/doorway")
+      uri '/doorway',   :handler => Mongrel::Camping::CampingHandler.new(MouseHole)
+      uri '/static',    :handler => Mongrel::DirHandler.new(File.join(options.app_dir, 'static'))
+      trap('INT') { stop }
+      run
+    end
+  end
+  config.join
 
 # THESE SERVERS NEED TO BE REWRITTEN, RETESTED
 # when "lighttpd"
@@ -196,5 +196,5 @@ when "mongrel"
 #     File.chmod( 0755, files['htdocs/index.rbx'] )
 #     `#{ a2_path } -f #{ files['httpd.conf'] }`
 else
-    abort "** Server `#{ options.server }' not supported."
+  abort "** Server `#{ options.server }' not supported."
 end
