@@ -90,6 +90,20 @@ module MouseHole::Views
     end
   end
 
+  def installer
+    div.main do
+      h1 "Install"
+      h3 @url
+      form :method => 'POST', :action => R(RInstaller) do
+        input :name => 'url', :type => 'hidden', :value => @url
+        textarea @body, :cols => 68, :rows => 20, :name => 'script'
+        div.submits do
+          input :type => 'submit', :value => 'Install'
+        end
+      end
+    end
+  end
+
   def about
     div.main do
       red %{
@@ -196,7 +210,11 @@ module MouseHole::Views
           end
         end
       end
-      p "Originally installed by hand."
+      if @app.install_uri
+        p "Installed from #{@app.install_uri}."
+      else
+        p "Originally installed by hand."
+      end
     end
   end
 

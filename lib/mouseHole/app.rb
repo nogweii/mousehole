@@ -10,14 +10,34 @@ module MouseHole
 
     attr_reader :token
     attr_accessor :document, :path, :mount_on, :mtime, :active,
-      :install_uri, :registered_uris, :klass, :model, :app_style,
+      :registered_uris, :klass, :model, :app_style,
       *METADATA
 
-    def initialize opts = {}
-      yield self
+    def basic_setup
       @accept ||= HTML
       @token ||= MouseHole.token
     end
+
+    def initialize server, klass_name = nil, model = nil, rb = nil
+      klass_name ||= self.class.name
+      self.model = model
+      self.title = klass_name
+      METADATA.each do |f|
+        self.send("#{f}=", self.class.send("default_#{f}"))
+      end
+      self.klass = klass_name
+      self.path = rb
+      if self.handlers
+        self.handlers.each do |h_is, h_name, h_blk|
+          next unless h_is == :mount
+          server.unregister "/#{h_name}"
+          server.register "/#{h_name}", h_blk
+        end
+      end
+      basic_setup
+    end
+
+    def install_uri; @model.uri if @model end
 
     def icon; "ruby_gear" end
 
@@ -99,11 +119,7 @@ module MouseHole
         klass = Object.const_get(klass_name)
         klass.create if klass.respond_to? :create
       rescue Exception => e
-        return BrokenApp.new do |app|
-          app.title, = *source.match(/\b#{title}\b/i)
-          app.path = rb
-          app.error = e
-        end
+        return BrokenApp.new(source[/\b#{title}\b/i, 0], rb, e)
       end
 
       return unless klass and klass_name
@@ -115,21 +131,7 @@ module MouseHole
       end
 
       if klass < App
-        klass.new do |app|
-          app.title = klass_name
-          METADATA.each do |f|
-            app.send("#{f}=", klass.send("default_#{f}"))
-          end
-          app.klass = klass_name
-          app.path = rb
-          if app.handlers
-            app.handlers.each do |h_is, h_name, h_blk|
-              next unless h_is == :mount
-              server.unregister "/#{h_name}"
-              server.register "/#{h_name}", h_blk
-            end
-          end
-        end
+        klass.new(server, klass_name, model, rb)
       else
         if klass.const_defined? :MouseHole
           klass::MouseHole.constants.each do |c|
@@ -157,13 +159,7 @@ module MouseHole
             x
           end
         end
-        CampingApp.new do |app|
-          app.mount_on = "/#{title}"
-          app.title = klass_name
-          app.klass = klass_name
-          app.model = model
-          app.path = rb
-        end
+        CampingApp.new(title, klass_name, model, rb)
       end
     end
 
@@ -237,10 +233,24 @@ module MouseHole
   end
 
   class CampingApp < App
+    def initialize title, klass_name, model, rb
+      self.mount_on = "/#{title}"
+      self.title = klass_name
+      self.klass = klass_name
+      self.model = model
+      self.path = rb
+      basic_setup
+    end
     def icon; "ruby" end
   end
 
   class BrokenApp < App
+    def initialize(title, path, e)
+      self.title = title
+      self.path = path
+      self.error = e
+      basic_setup
+    end
     attr_accessor :error
     def icon; "broken" end
     def broken?; true end

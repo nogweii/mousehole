@@ -41,7 +41,7 @@ spec =
         s.executables = ['mouseHole']
 
         s.add_dependency('camping-omnibus', '>= 1.5.180')
-        s.add_dependency('hpricot', '>=0.4.92')
+        s.add_dependency('hpricot', '>=0.5')
         s.add_dependency('json', '>=0.4.2')
         s.required_ruby_version = '>= 1.8.4'
 

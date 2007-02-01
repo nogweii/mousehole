@@ -21,6 +21,7 @@ require 'mouseHole/mixins/logger'
 require 'mouseHole/mixins/handler'
 
 require 'mouseHole/htmlconverter'
+require 'mouseHole/textconverter'
 require 'mouseHole/feedconverter'
 
 # mouseHole's proxy infrastructure
@@ -33,6 +34,9 @@ require 'mouseHole/helpers'
 require 'mouseHole/models'
 require 'mouseHole/views'
 require 'mouseHole/controllers'
+
+# mouseHole builtin apps
+require 'mouseHole/installer'
 
 module MouseHole
   VERSION = "2.0"

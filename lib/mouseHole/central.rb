@@ -20,8 +20,10 @@ module MouseHole
         HOSTS[domain] = "#{ options.host }:#{ options.port }"
       end
 
+      # built-in applications
+      @apps = {'$INSTALLER' => InstallerApp.new(@server)}
       # user-specific directories and utilities
-      @etags, @apps, @sandbox = {}, {}, {}
+      @etags, @sandbox = {}, {}
       @working_dir = options.working_dir
       @dir = options.mouse_dir
       File.makedirs( @dir )
@@ -39,8 +41,12 @@ module MouseHole
       load_all_apps :force
     end
 
+    def user_apps
+      @apps.reject { |rb,| rb =~ /^\$/ }
+    end
+
     def load_all_apps action = nil
-      apps = @apps.keys + Dir["#{ @dir }/*.rb"].map { |rb| File.basename(rb) }
+      apps = self.user_apps.keys + Dir["#{ @dir }/*.rb"].map { |rb| File.basename(rb) }
       apps.uniq!
 
       apps.each do |rb|
@@ -56,7 +62,18 @@ module MouseHole
       end
     end
 
+    def save_app url, full_script
+      rb = File.basename(url)
+      path = File.join(@dir, rb)
+      open(path, 'w') do |f|
+        f << full_script
+      end
+      Models::App.create(:script => rb, :uri => url)
+      load_app rb
+    end
+
     def load_app rb
+      return @apps[rb] if rb =~ /^\$/
       if @apps.has_key? rb
         @apps[rb].unload(@server)
       end
@@ -92,15 +109,15 @@ module MouseHole
    
     def app_list
       refresh_apps
-      @apps.values
+      self.user_apps.values
     end
 
     def find_app crit
       case crit
       when String
-        @apps[crit]
+        self.user_apps[crit]
       when Hash
-        (@apps.detect { |name, app|
+        (self.user_apps.detect { |name, app|
           crit.all? { |k,v| app.send(k) == v }
         } || []).last
       end

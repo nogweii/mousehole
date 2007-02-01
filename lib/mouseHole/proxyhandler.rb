@@ -58,7 +58,7 @@ module MouseHole
         set_via(header)
 
         page = Page.new(uri, resin.code, header)
-        if !DOMAINS.include?(env['server-name']) and @central.rewrite(page, resin)
+        if page.converter and !DOMAINS.include?(env['server-name']) and @central.rewrite(page, resin)
           info "*> rewriting #{page.location}", :since => start
           output(page, response)
         else

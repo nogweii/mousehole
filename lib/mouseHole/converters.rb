@@ -13,6 +13,9 @@ module Converters
 
   class Base
     def self.mime_type type_match
+      if type_match.index('*')
+        type_match = /^#{Regexp::quote(type_match).gsub(/\\\*/, '.*')}$/
+      end
       @mime_types ||= []
       @mime_types << type_match
     end

@@ -52,6 +52,22 @@ module MouseHole::Controllers
     end
   end
 
+  class RInstaller < R '/install'
+    def get
+      if @input.url
+        @url = @input.url
+        URI.parse(@input.url).open do |f|
+          @body = f.read
+        end
+        doorway :installer
+      end
+    end
+    def post
+      app = MouseHole::CENTRAL.save_app @input.url, @input.script
+      redirect RApp, app.path
+    end
+  end
+
   class RBlocks < R '/blocks'
     def post
       Block.delete_all
