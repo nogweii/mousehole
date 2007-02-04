@@ -14,7 +14,7 @@ class ProxyLike < MouseHole::App
   description %{
     Run pages through the proxy by passing them in on the URL.
     For example, to view Boing Boing through the proxy, use:
-    http://localhost:37004/http://boingboing.net/ 
+    http://127.0.0.1:3704/http://boingboing.net/ 
   }
   version '2.1'
   
@@ -22,7 +22,7 @@ class ProxyLike < MouseHole::App
     mH = "http://#{ page.headers['host'] }/"
     uri = URI(page.location.to_s[1..-1])
     options = {:proxy => mH}.merge(page.headers.to_h)
-    options.delete "host"
+    options.delete_if { |k,v| %w(host accept-encoding).include? k }
     page.document =
       uri.open(options) do |f|
       base_uri = uri.dup
