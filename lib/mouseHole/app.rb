@@ -119,6 +119,7 @@ module MouseHole
         klass = Object.const_get(klass_name)
         klass.create if klass.respond_to? :create
       rescue Exception => e
+        warn "Warning, found broken app: '#{title}'"
         return BrokenApp.new(source[/\b#{title}\b/i, 0], rb, e)
       end
 

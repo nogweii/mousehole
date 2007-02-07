@@ -133,6 +133,7 @@ when "mongrel"
       run
     end
   end
+  puts "** MouseHole running on #{options.host}:#{options.port}"
   config.join
 
 # THESE SERVERS NEED TO BE REWRITTEN, RETESTED

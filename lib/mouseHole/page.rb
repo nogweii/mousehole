@@ -16,7 +16,8 @@ module MouseHole
   end
 
   class Page
-    attr_accessor :location, :status, :headers, :converter, :document, :input
+    Attributes = [:location, :status, :headers, :converter, :document, :input]
+    attr_accessor *Attributes
     def initialize(uri, status, headers)
       @location = uri
       @status = status
@@ -26,6 +27,24 @@ module MouseHole
       if ctype
         @converter = Converters.detect_by_mime_type ctype.split(';',2)[0]
       end
+    end
+
+    # Used for loading marshalled Page object into Sandbox
+    def self.restore(attribs)
+      page = Page.new(attribs[Attributes.index(:location)], nil, 
+                      attribs[Attributes.index(:headers)])
+
+      Attributes.each_with_index do |attr, ndx| 
+        page.send(attr.to_s+'=', attribs[ndx])
+      end
+
+      page
+    end
+
+    def to_a # See self.restore(attribs)
+      arr = Attributes.map { |attr| self.send(attr) }
+      arr[Attributes.index(:headers)] = arr[Attributes.index(:headers)].to_a
+      arr
     end
 
     # MrCode's gzip decoding from WonderLand!  Also reads in remainder of the body from the
