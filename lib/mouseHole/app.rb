@@ -114,6 +114,7 @@ module MouseHole
       # the commandline by Ruby.
       klass, klass_name, source = nil, nil, File.read(path)
       begin
+        source.gsub!('__FILE__', "'" + path + "'")
         eval(source, TOPLEVEL_BINDING)
         klass_name = Object.constants.grep(/^#{title}$/i)[0]
         klass = Object.const_get(klass_name)
