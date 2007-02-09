@@ -46,11 +46,13 @@ class FreakyLike < MouseHole::App
       code = %{
         page = MouseHole::Page.restore(#{marshal_dump(page.to_a)})
         eval #{marshal_dump(script)}
-        Freaky.rewrite(page)
-      }
-      page.document = Box.eval(code).to_s
+        s = ''
+        Freaky.rewrite(page).to_s.each { |line| s << line }
+        s
+      } # TODO: figure out why String can't be referred if returned directly
+      page.document = Box.eval(code)
     rescue Sandbox::Exception => e
-      page.document += "(Caught sandbox exception: #{e})"
+      page.document = "(Caught sandbox exception: #{e})"
     end
 
     base_uri = page_uri.dup
@@ -69,7 +71,13 @@ class FreakyLike < MouseHole::App
   end
 end
 
+module Web
+  def self.escape(s); Camping.escape(s); end
+  def self.unescape(s); Camping.un(s); end
+end
+
 FreakyLike::Box = Sandbox.safe
+FreakyLike::Box.ref Web
 FreakyLike::Box.ref MouseHole
 FreakyLike::Box.ref MouseHole::Page
 FreakyLike::Box.ref MouseHole::PageHeaders
@@ -81,4 +89,3 @@ FreakyLike::Box.import HashWithIndifferentAccess
   FreakyLike::Box.import Kernel.const_get(klass)
 end
 
-# refs
