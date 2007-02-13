@@ -40,10 +40,15 @@ class FreakyLike < MouseHole::App
     page.document = page_uri.open(options) { |f| f.read }
 
     # http GET script_uri, and apply sandboxed script to document
-    script = script_uri.open(options) { |f| f.read }
+    begin
+      script = script_uri.open(options) { |f| puts f.inspect; f.read }
+    rescue
+      warn "Couldn't read #{script_uri}"
+    end
 
     begin
       code = %{
+        $host = #{marshal_dump(mH)}
         page = MouseHole::Page.restore(#{marshal_dump(page.to_a)})
         eval #{marshal_dump(script)}
         s = ''
