@@ -24,6 +24,7 @@ module MouseHole
       @input = Camping.qsp(uri.query)
       @headers = PageHeaders[*headers]
       ctype = @headers['Content-Type']
+      ctype = ctype.first if ctype.respond_to? :first
       if ctype
         @converter = Converters.detect_by_mime_type ctype.split(';',2)[0]
       end
