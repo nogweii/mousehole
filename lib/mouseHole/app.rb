@@ -153,11 +153,15 @@ module MouseHole
           define_method :run do |*a|
             x = __run__(*a)
             x_is_html = true unless x.respond_to? :headers and x.headers['Content-Type'] != 'text/html'
-            if x.respond_to? :body and x_is_html
-              doc = Hpricot(x.body)
-              (doc/:head).append("<style type='text/css'>@import '/doorway/static/css/mounts.css';</style>")
-              (doc/:body).prepend("<div id='mh2'><b><a href='/'>MouseHole</a></b> // You are using <b>#{klass_name}</b> (<a href='/doorway/app/#{rb}'>edit</a>)</div>")
-              x.body = doc.to_original_html
+            if (x.respond_to? :body and not x.body.nil?) and x_is_html
+              begin
+                doc = Hpricot(x.body)
+                (doc/:head).append("<style type='text/css'>@import '/doorway/static/css/mounts.css';</style>")
+                (doc/:body).prepend("<div id='mh2'><b><a href='/'>MouseHole</a></b> // You are using <b>#{klass_name}</b> (<a href='/doorway/app/#{rb}'>edit</a>)</div>")
+                x.body = doc.to_original_html
+              rescue
+                warn "Couldn't parse #{x.headers['Location']}" if x.respond_to? :headers
+              end
             end
             x
           end
