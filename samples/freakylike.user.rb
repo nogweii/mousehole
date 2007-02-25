@@ -27,6 +27,7 @@ class FreakyLike < MouseHole::App
   RewritePrefix = "rewrite:"
 
   mount RewritePrefix do |page|
+    page.status = 200 # OK
 
     match = %r{(#{RewritePrefix}//.+)(http://.+)}.match(page.location.to_s).captures
     match[0].gsub!(RewritePrefix, 'http:')

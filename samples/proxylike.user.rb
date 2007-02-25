@@ -19,6 +19,7 @@ class ProxyLike < MouseHole::App
   version '2.1'
  
   mount "http:" do |page|
+    page.status = 200 # OK
     mH = "http://#{ page.headers['host'] }/"
     uri = URI(page.location.to_s[1..-1])
     options = {:proxy => mH}.merge(page.headers.to_h)
