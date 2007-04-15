@@ -42,7 +42,7 @@ spec =
 
         s.add_dependency('camping-omnibus', '>= 1.5.180')
         s.add_dependency('hpricot', '>=0.5')
-        s.add_dependency('json', '>=0.4.2')
+        s.add_dependency('json', '>= 1.0.2')
         s.required_ruby_version = '>= 1.8.4'
 
         s.files = %w(COPYING README Rakefile) +

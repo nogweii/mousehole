@@ -1,4 +1,4 @@
-require 'json'
+require 'json/pure'
 
 class Time
   def to_json(*a)
