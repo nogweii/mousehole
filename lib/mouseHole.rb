@@ -7,6 +7,8 @@ require 'resolv-replace'
 require 'zlib'
 
 require 'camping'
+# fix ref to acts_as_list
+require 'mouseHole/hacks/acts_as_list'
 
 Camping.goes :MouseHole
 

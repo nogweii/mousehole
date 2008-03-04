@@ -26,3 +26,13 @@ class Mongrel::HttpResponse
 
 end
 
+
+class Mongrel::URIClassifier
+  def register(uri, handler)
+    raise RegistrationError, "#{uri.inspect} is already registered" if @handler_map[uri]
+    raise RegistrationError, "URI is empty" if !uri or uri.empty?
+    @handler_map[uri.dup] = handler
+    rebuild
+  end
+end
+
