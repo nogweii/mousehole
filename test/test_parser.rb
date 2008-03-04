@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'test/unit'
+require 'rubygems'
 require 'hpricot'
 require 'load_files'
 
