@@ -34,5 +34,18 @@ class Mongrel::URIClassifier
     @handler_map[uri.dup] = handler
     rebuild
   end
+
+  # Unregister a particular URI and its handler.
+  def unregister(uri)
+    handler = @handler_map.delete(uri)
+    rebuild
+    handler
+  end
+  
+  # Added so that proper mongrel behavior continues
+  def unregister!(uri)
+    raise RegistrationError, "#{uri.inspect} was not registered" unless unregister(uri)
+  end
+
 end
 

@@ -1,4 +1,5 @@
 require 'open-uri'
+require 'resolv'
 
 class Array
   def to_h
@@ -20,7 +21,13 @@ class ProxyLike < MouseHole::App
  
   mount "http:" do |page|
     page.status = 200 # OK
-    mH = "http://#{ page.headers['host'] }/"
+    proxyAddr = URI("http://#{ page.headers['host'] }/")
+    addresses = Resolv.getaddresses(proxyAddr.host)
+    if (address = addresses.find { |a| a =~ /([0-9]+\.){3}[0-9]+/ }) # stupid ip address detect
+      mH = "http://#{ address }:#{proxyAddr.port}/"
+    else
+      mH = proxyAddr.to_s
+    end
     uri = URI(page.location.to_s[1..-1])
     options = {:proxy => mH}.merge(page.headers.to_h)
     options.delete_if { |k,v| %w(host accept-encoding).include? k }
