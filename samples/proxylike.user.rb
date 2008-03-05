@@ -40,7 +40,7 @@ class ProxyLike < MouseHole::App
   end
 
   def self.base_href( html, uri, mh )
-    html.gsub( /(href\s*=\s*["']?)(#{ uri }|\/+)/, "\\1#{ mh }#{ uri }" ).
+    html.gsub( /((href|action|src)\s*=\s*["']?)(#{ uri }|\/+)/, "\\1#{ mh }#{ uri }" ).
       sub( /<html/i, %(<base href="#{ uri }" /><html) )
   end
 end
