@@ -14,7 +14,7 @@ CLEAN.include ['**/.*.sw?', '*.gem', '.config']
 Rake::RDocTask.new do |rdoc|
     rdoc.rdoc_dir = 'doc/rdoc'
     rdoc.options << '--line-numbers'
-    rdoc.rdoc_files.add ['README', 'COPYING', 'lib/**/*.rb', 'doc/**/*.rdoc']
+    rdoc.rdoc_files.add ['README.rdoc', 'COPYING', 'lib/**/*.rb', 'doc/**/*.rdoc']
 end
 
 desc "Packages up MouseHole 2."
@@ -34,7 +34,7 @@ spec =
         s.version = VERS
         s.platform = Gem::Platform::RUBY
         s.has_rdoc = false
-        s.extra_rdoc_files = [ "README" ]
+        s.extra_rdoc_files = [ "README.rdoc" ]
         s.summary = "a scriptable proxy, an alternative to Greasemonkey and personal web server."
         s.description = s.summary
         s.author = "why the lucky stiff"
@@ -45,7 +45,7 @@ spec =
         s.add_dependency('json', '>= 1.0.2')
         s.required_ruby_version = '>= 1.8.4'
 
-        s.files = %w(COPYING README Rakefile) +
+        s.files = %w(COPYING README.rdoc Rakefile) +
           Dir.glob("{bin,doc/rdoc,test,lib,static}/**/*") + 
           Dir.glob("ext/**/*.{h,c,rb}") +
           Dir.glob("samples/**/*.rb") +
