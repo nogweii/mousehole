@@ -37,8 +37,11 @@ spec =
         s.extra_rdoc_files = [ "README.rdoc" ]
         s.summary = "a scriptable proxy, an alternative to Greasemonkey and personal web server."
         s.description = s.summary
-        s.author = "why the lucky stiff"
         s.executables = ['mouseHole']
+
+        s.author = "Colin 'Evaryont' Shea"
+        s.email = "colin@evaryont.me"
+        s.homepage = "http://github.com/evaryont/mousehole"
 
         s.add_dependency('camping-omnibus', '>= 1.5.180')
         s.add_dependency('hpricot', '>=0.5')
@@ -50,7 +53,7 @@ spec =
           Dir.glob("ext/**/*.{h,c,rb}") +
           Dir.glob("samples/**/*.rb") +
           Dir.glob("tools/*.rb")
-        
+
         s.require_path = "lib"
         # s.extensions = FileList["ext/**/extconf.rb"].to_a
         s.bindir = "bin"
