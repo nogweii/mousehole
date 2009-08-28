@@ -1,4 +1,4 @@
-require 'ftools'
+require 'fileutils'
 require 'mouseHole/page'
 
 module MouseHole
@@ -26,7 +26,7 @@ module MouseHole
       @etags, @sandbox = {}, {}
       @working_dir = options.working_dir
       @dir = options.mouse_dir
-      File.makedirs( @dir )
+      FileUtils.mkdir_p( @dir )
       @started = Time.now
 
       # connect to the database, get some data

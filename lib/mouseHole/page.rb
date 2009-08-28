@@ -57,12 +57,12 @@ module MouseHole
       end
 
       case resin['content-encoding']
-      when 'gzip':
+      when 'gzip' then
         gzr = Zlib::GzipReader.new(StringIO.new(body))
         body = gzr.read
         gzr.close
         self.headers['content-encoding'] = nil
-      when 'deflate':
+      when 'deflate' then
         body = Zlib::Inflate.inflate(body)
         self.headers['content-encoding'] = nil
       end
